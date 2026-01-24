@@ -1,0 +1,457 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ==================== User & Auth ====================
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         String    @default("USER")
+  department   String?
+  theme        String    @default("glassmorphism")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  activityLogs UserActivityLog[]
+
+  @@index([username])
+  @@index([role])
+  @@map("users")
+}
+
+model Permission {
+  id       Int    @id @default(autoincrement())
+  role     String
+  resource String
+  action   String
+
+  @@unique([role, resource, action])
+  @@index([role])
+  @@map("permissions")
+}
+
+model UserActivityLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  action     String
+  resource   String?
+  resourceId String?  @map("resource_id")
+  details    String?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("user_activity_log")
+}
+
+// ==================== Master Data ====================
+
+model Supplier {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  name          String
+  contactPerson String?  @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  leadTimeDays  Int      @default(7) @map("lead_time_days")
+  paymentTerms  String?  @map("payment_terms")
+  notes         String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  parts  Part[]
+  orders Order[]
+
+  @@map("suppliers")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  parentId    Int?     @map("parent_id")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  parts    Part[]
+
+  @@map("categories")
+}
+
+model Part {
+  id              Int      @id @default(autoincrement())
+  partCode        String   @unique @map("part_code")
+  partName        String   @map("part_name")
+  description     String?
+  categoryId      Int?     @map("category_id")
+  supplierId      Int?     @map("supplier_id")
+  unit            String   @default("EA")
+  unitPrice       Float    @default(0) @map("unit_price")
+  safetyStock     Int      @default(0) @map("safety_stock")
+  reorderPoint    Int      @default(0) @map("reorder_point")
+  minOrderQty     Int      @default(1) @map("min_order_qty")
+  leadTimeDays    Int      @default(7) @map("lead_time_days")
+  storageLocation String?  @map("storage_location")
+  isActive        Boolean  @default(true) @map("is_active")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  category      Category?        @relation(fields: [categoryId], references: [id])
+  supplier      Supplier?        @relation(fields: [supplierId], references: [id])
+  inventory     Inventory?
+  transactions  Transaction[]
+  discrepancies DiscrepancyLog[]
+  orderItems    OrderItem[]
+  auditItems    AuditItem[]
+  bomItems      BomItem[]
+  mrpResults    MrpResult[]
+
+  @@index([partCode])
+  @@index([isActive])
+  @@index([supplierId])
+  @@index([categoryId])
+  @@map("parts")
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  productCode String   @unique @map("product_code")
+  productName String   @map("product_name")
+  description String?
+  category    String?
+  unit        String   @default("EA")
+  isActive    Boolean  @default(true) @map("is_active")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  bomItems        BomItem[]
+  salesOrderItems SalesOrderItem[]
+
+  @@index([productCode])
+  @@map("products")
+}
+
+model BomItem {
+  id              Int      @id @default(autoincrement())
+  productId       Int      @map("product_id")
+  partId          Int      @map("part_id")
+  quantityPerUnit Float    @map("quantity_per_unit")
+  lossRate        Float    @default(1.0) @map("loss_rate")
+  isActive        Boolean  @default(true) @map("is_active")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id])
+  part    Part    @relation(fields: [partId], references: [id])
+
+  @@unique([productId, partId])
+  @@index([productId])
+  @@index([partId])
+  @@map("bom_items")
+}
+
+// ==================== Operations ====================
+
+model SalesOrder {
+  id        Int       @id @default(autoincrement())
+  orderCode String    @unique @map("order_code")
+  orderDate DateTime  @map("order_date")
+  division  String?
+  manager   String?
+  project   String?
+  dueDate   DateTime? @map("due_date")
+  status    String    @default("RECEIVED")
+  totalQty  Int       @default(0) @map("total_qty")
+  notes     String?
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  items      SalesOrderItem[]
+  mrpResults MrpResult[]
+
+  @@index([status])
+  @@index([dueDate])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id           Int     @id @default(autoincrement())
+  salesOrderId Int     @map("sales_order_id")
+  productId    Int     @map("product_id")
+  orderQty     Int     @map("order_qty")
+  producedQty  Int     @default(0) @map("produced_qty")
+  status       String  @default("PENDING")
+  notes        String?
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([productId])
+  @@map("sales_order_items")
+}
+
+model Order {
+  id           Int       @id @default(autoincrement())
+  orderCode    String    @unique @map("order_code")
+  supplierId   Int       @map("supplier_id")
+  project      String?
+  orderDate    DateTime  @map("order_date")
+  expectedDate DateTime? @map("expected_date")
+  actualDate   DateTime? @map("actual_date")
+  status       String    @default("DRAFT")
+  totalAmount  Float     @default(0) @map("total_amount")
+  notes        String?
+  createdBy    String?   @map("created_by")
+  approvedBy   String?   @map("approved_by")
+  approvedAt   DateTime? @map("approved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  supplier Supplier    @relation(fields: [supplierId], references: [id])
+  items    OrderItem[]
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([orderDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           Int       @id @default(autoincrement())
+  orderId      Int       @map("order_id")
+  partId       Int       @map("part_id")
+  orderQty     Int       @map("order_qty")
+  receivedQty  Int       @default(0) @map("received_qty")
+  unitPrice    Float?    @map("unit_price")
+  totalPrice   Float?    @map("total_price")
+  expectedDate DateTime? @map("expected_date")
+  status       String    @default("PENDING")
+  notes        String?
+
+  order Order @relation(fields: [orderId], references: [id])
+  part  Part  @relation(fields: [partId], references: [id])
+
+  @@index([orderId])
+  @@index([partId])
+  @@map("order_items")
+}
+
+model Inventory {
+  id               Int       @id @default(autoincrement())
+  partId           Int       @unique @map("part_id")
+  currentQty       Int       @default(0) @map("current_qty")
+  reservedQty      Int       @default(0) @map("reserved_qty")
+  incomingQty      Int       @default(0) @map("incoming_qty")
+  lastInboundDate  DateTime? @map("last_inbound_date")
+  lastOutboundDate DateTime? @map("last_outbound_date")
+  lastAuditDate    DateTime? @map("last_audit_date")
+  lastAuditQty     Int?      @map("last_audit_qty")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  part Part @relation(fields: [partId], references: [id])
+
+  @@index([partId])
+  @@index([currentQty])
+  @@map("inventory")
+}
+
+model Transaction {
+  id              Int      @id @default(autoincrement())
+  transactionCode String   @unique @map("transaction_code")
+  partId          Int      @map("part_id")
+  transactionType String   @map("transaction_type")
+  quantity        Int
+  beforeQty       Int      @map("before_qty")
+  afterQty        Int      @map("after_qty")
+  referenceType   String?  @map("reference_type")
+  referenceId     String?  @map("reference_id")
+  unitPrice       Float?   @map("unit_price")
+  totalAmount     Float?   @map("total_amount")
+  reason          String?
+  performedBy     String?  @map("performed_by")
+  notes           String?
+  transactionDate DateTime @default(now()) @map("transaction_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  part Part @relation(fields: [partId], references: [id])
+
+  @@index([partId])
+  @@index([transactionDate])
+  @@index([transactionType])
+  @@map("transactions")
+}
+
+// ==================== Analysis & Reporting ====================
+
+model MrpResult {
+  id                 Int       @id @default(autoincrement())
+  calculationDate    DateTime  @map("calculation_date")
+  salesOrderId       Int?      @map("sales_order_id")
+  partId             Int       @map("part_id")
+  grossRequirement   Int       @map("gross_requirement")
+  currentStock       Int       @map("current_stock")
+  reservedQty        Int       @default(0) @map("reserved_qty")
+  incomingQty        Int       @default(0) @map("incoming_qty")
+  netRequirement     Int       @map("net_requirement")
+  suggestedOrderQty  Int       @map("suggested_order_qty")
+  suggestedOrderDate DateTime? @map("suggested_order_date")
+  status             String    @default("PENDING")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  part       Part        @relation(fields: [partId], references: [id])
+
+  @@index([partId])
+  @@index([status])
+  @@map("mrp_results")
+}
+
+model AuditRecord {
+  id               Int       @id @default(autoincrement())
+  auditCode        String    @unique @map("audit_code")
+  auditDate        DateTime  @map("audit_date")
+  auditType        String    @default("MONTHLY") @map("audit_type")
+  status           String    @default("IN_PROGRESS")
+  totalItems       Int       @default(0) @map("total_items")
+  matchedItems     Int       @default(0) @map("matched_items")
+  discrepancyItems Int       @default(0) @map("discrepancy_items")
+  performedBy      String?   @map("performed_by")
+  approvedBy       String?   @map("approved_by")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  completedAt      DateTime? @map("completed_at")
+
+  items AuditItem[]
+
+  @@index([auditDate])
+  @@map("audit_records")
+}
+
+model AuditItem {
+  id          Int       @id @default(autoincrement())
+  auditId     Int       @map("audit_id")
+  partId      Int       @map("part_id")
+  systemQty   Int       @map("system_qty")
+  countedQty  Int?      @map("counted_qty")
+  discrepancy Int?
+  notes       String?
+  countedAt   DateTime? @map("counted_at")
+
+  audit AuditRecord @relation(fields: [auditId], references: [id])
+  part  Part        @relation(fields: [partId], references: [id])
+
+  @@index([auditId])
+  @@index([partId])
+  @@map("audit_items")
+}
+
+model DiscrepancyLog {
+  id              Int       @id @default(autoincrement())
+  partId          Int       @map("part_id")
+  detectedDate    DateTime  @map("detected_date")
+  systemQty       Int       @map("system_qty")
+  actualQty       Int       @map("actual_qty")
+  discrepancy     Int
+  discrepancyType String?   @map("discrepancy_type")
+  causeCategory   String?   @map("cause_category")
+  causeDetail     String?   @map("cause_detail")
+  resolution      String?
+  resolvedAt      DateTime? @map("resolved_at")
+  resolvedBy      String?   @map("resolved_by")
+  status          String    @default("OPEN")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  part Part @relation(fields: [partId], references: [id])
+
+  @@index([partId])
+  @@index([status])
+  @@map("discrepancy_log")
+}
+
+// ==================== External Integration ====================
+
+model GoogleSheetsSyncConfig {
+  id               Int       @id @default(autoincrement())
+  name             String
+  syncType         String    @map("sync_type")
+  spreadsheetId    String    @map("spreadsheet_id")
+  sheetName        String    @map("sheet_name")
+  dataRange        String    @default("A2:Z") @map("data_range")
+  keyColumn        String?   @map("key_column")
+  columnMapping    String?   @map("column_mapping")
+  isActive         Boolean   @default(true) @map("is_active")
+  lastSyncAt       DateTime? @map("last_sync_at")
+  lastSyncChecksum String?   @map("last_sync_checksum")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  syncHistory  GoogleSheetsSyncHistory[]
+  rowTrackings GoogleSheetsRowTracking[]
+
+  @@index([syncType])
+  @@index([isActive])
+  @@map("google_sheets_sync_configs")
+}
+
+model GoogleSheetsSyncHistory {
+  id           Int       @id @default(autoincrement())
+  configId     Int       @map("config_id")
+  syncType     String    @map("sync_type")
+  startedAt    DateTime  @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  status       String
+  totalRows    Int       @default(0) @map("total_rows")
+  insertedRows Int       @default(0) @map("inserted_rows")
+  updatedRows  Int       @default(0) @map("updated_rows")
+  skippedRows  Int       @default(0) @map("skipped_rows")
+  errorRows    Int       @default(0) @map("error_rows")
+  errorDetails String?   @map("error_details")
+
+  config GoogleSheetsSyncConfig @relation(fields: [configId], references: [id])
+
+  @@index([configId])
+  @@index([status])
+  @@map("google_sheets_sync_history")
+}
+
+model GoogleSheetsRowTracking {
+  id          Int       @id @default(autoincrement())
+  configId    Int       @map("config_id")
+  rowKey      String    @map("row_key")
+  rowChecksum String    @map("row_checksum")
+  localId     Int?      @map("local_id")
+  lastSeenAt  DateTime? @map("last_seen_at")
+
+  config GoogleSheetsSyncConfig @relation(fields: [configId], references: [id])
+
+  @@unique([configId, rowKey])
+  @@index([configId])
+  @@index([rowKey])
+  @@map("google_sheets_row_tracking")
+}
