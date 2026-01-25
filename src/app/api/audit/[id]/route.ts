@@ -11,9 +11,6 @@ export async function GET(request: Request, { params }: Params) {
     const audit = await prisma.auditRecord.findUnique({
       where: { id: parseInt(id) },
       include: {
-        createdBy: {
-          select: { id: true, name: true },
-        },
         items: {
           include: {
             part: true,
@@ -52,11 +49,6 @@ export async function PUT(request: Request, { params }: Params) {
         discrepancyItems: body.discrepancyItems,
         completedAt: body.status === "COMPLETED" ? new Date() : undefined,
       },
-      include: {
-        createdBy: {
-          select: { id: true, name: true },
-        },
-      },
     });
 
     return NextResponse.json(audit);
@@ -75,7 +67,7 @@ export async function DELETE(request: Request, { params }: Params) {
 
     // Delete related items first
     await prisma.auditItem.deleteMany({
-      where: { auditRecordId: parseInt(id) },
+      where: { auditId: parseInt(id) },
     });
 
     await prisma.auditRecord.delete({

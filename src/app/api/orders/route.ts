@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { createOrderCreatedNotification } from "@/services/notification.service";
 
 export async function GET() {
   try {
@@ -52,6 +53,13 @@ export async function POST(request: Request) {
         items: true,
       },
     });
+
+    // 발주 생성 알림 (비동기)
+    createOrderCreatedNotification(
+      order.orderCode,
+      order.supplier?.name || "알 수 없음",
+      order.totalAmount || 0
+    ).catch(console.error);
 
     return NextResponse.json(order, { status: 201 });
   } catch (error) {

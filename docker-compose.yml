@@ -1,0 +1,46 @@
+# ==========================================
+# PartSync MRP - Docker Compose
+# ==========================================
+# Usage:
+#   Development: docker-compose up -d
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   Build:       docker-compose build
+#   Logs:        docker-compose logs -f
+#   Stop:        docker-compose down
+
+services:
+  # ==========================================
+  # PartSync Application
+  # ==========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: partsync-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/partsync.db
+      - AUTH_SECRET=${AUTH_SECRET:-partsync-docker-secret-change-in-production}
+      - AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_NAME=PartSync
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    user: "1001:1001"
+    volumes:
+      # Persist SQLite database
+      - partsync-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  partsync-data:
+    driver: local

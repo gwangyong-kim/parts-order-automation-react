@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import DashboardCharts from "@/components/charts/DashboardCharts";
+import DashboardWarehouseMap from "@/components/dashboard/DashboardWarehouseMap";
 
 async function getDashboardStats() {
   try {
@@ -102,6 +103,9 @@ export default async function DashboardPage() {
           delay={3}
         />
       </div>
+
+      {/* Warehouse Map - Full Width */}
+      <DashboardWarehouseMap />
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   ShoppingCart,
   Plus,
@@ -237,7 +238,7 @@ export default function OrdersPage() {
     }
   };
 
-  const handleBulkUpload = async (data: Record<string, string>[]) => {
+  const handleBulkUpload = async (data: Record<string, unknown>[]) => {
     setIsUploading(true);
     try {
       const res = await fetch("/api/orders/bulk", {
@@ -469,8 +470,26 @@ export default function OrdersPage() {
                     key={order.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium">{order.orderNumber}</td>
-                    <td className="table-cell">{order.supplier?.name || "-"}</td>
+                    <td className="table-cell font-medium">
+                      <button
+                        onClick={() => handleEdit(order)}
+                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                      >
+                        {order.orderNumber}
+                      </button>
+                    </td>
+                    <td className="table-cell">
+                      {order.supplier ? (
+                        <Link
+                          href="/suppliers"
+                          className="text-[var(--primary)] hover:underline"
+                        >
+                          {order.supplier.name}
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                     <td className="table-cell">
                       {new Date(order.orderDate).toLocaleDateString("ko-KR")}
                     </td>
@@ -557,7 +576,7 @@ export default function OrdersPage() {
         onUpload={handleBulkUpload}
         title="발주 대량 업로드"
         fields={orderUploadFields}
-        templateFileName="발주_업로드_양식"
+        templateName="발주_업로드_양식"
         isLoading={isUploading}
       />
     </div>

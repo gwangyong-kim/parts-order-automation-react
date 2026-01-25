@@ -39,16 +39,17 @@ export async function PUT(request: Request, { params }: Params) {
     const part = await prisma.part.update({
       where: { id: parseInt(id) },
       data: {
-        partNumber: body.partNumber,
+        partCode: body.partNumber,
         partName: body.partName,
-        specification: body.specification,
+        description: body.specification || body.description,
         unit: body.unit,
         unitPrice: body.unitPrice,
         safetyStock: body.safetyStock,
         minOrderQty: body.minOrderQty,
-        leadTime: body.leadTime,
+        leadTimeDays: body.leadTime,
         categoryId: body.categoryId,
         supplierId: body.supplierId,
+        storageLocation: body.storageLocation,
         isActive: body.isActive,
       },
       include: {

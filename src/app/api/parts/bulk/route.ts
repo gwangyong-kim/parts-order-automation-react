@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { saveBulkUploadLog } from "@/lib/bulk-upload-logger";
 
 export async function POST(request: Request) {
   try {
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
         const partCode = row["파츠코드"] || row["partCode"] || row["파츠번호"] || row["partNumber"];
         const partName = row["파츠명"] || row["partName"] || row["품명"];
         const description = row["규격"] || row["description"] || row["사양"] || row["specification"];
+        const storageLocation = row["저장위치"] || row["storageLocation"] || row["위치"] || row["location"];
         const unit = row["단위"] || row["unit"] || "EA";
         const unitPrice = parseFloat(row["단가"] || row["unitPrice"] || row["가격"] || "0");
         const safetyStock = parseInt(row["안전재고"] || row["safetyStock"] || "0");
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
             data: {
               partName: partName || null,
               description: description || null,
+              storageLocation: storageLocation || null,
               unit,
               unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
               safetyStock: isNaN(safetyStock) ? 0 : safetyStock,
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
               partCode,
               partName: partName || null,
               description: description || null,
+              storageLocation: storageLocation || null,
               unit,
               unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
               safetyStock: isNaN(safetyStock) ? 0 : safetyStock,
@@ -117,6 +121,9 @@ export async function POST(request: Request) {
         results.errors.push(`행 ${rowNum}: ${(err as Error).message}`);
       }
     }
+
+    // 업로드 로그 저장
+    await saveBulkUploadLog("PARTS", results);
 
     return NextResponse.json({
       message: `업로드 완료: 성공 ${results.success}건, 실패 ${results.failed}건`,

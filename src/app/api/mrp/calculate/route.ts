@@ -60,12 +60,15 @@ export async function POST() {
 
       for (const bomItem of part.bomItems) {
         for (const salesOrderItem of bomItem.product.salesOrderItems) {
-          const quantity = salesOrderItem.orderQty * bomItem.quantity * (1 + bomItem.lossRate);
+          const quantity = salesOrderItem.orderQty * bomItem.quantityPerUnit * (1 + bomItem.lossRate);
           totalRequirement += quantity;
 
-          const deliveryDate = new Date(salesOrderItem.salesOrder.deliveryDate);
-          if (!earliestDeliveryDate || deliveryDate < earliestDeliveryDate) {
-            earliestDeliveryDate = deliveryDate;
+          const dueDate = salesOrderItem.salesOrder.dueDate;
+          if (dueDate) {
+            const deliveryDate = new Date(dueDate);
+            if (!earliestDeliveryDate || deliveryDate < earliestDeliveryDate) {
+              earliestDeliveryDate = deliveryDate;
+            }
           }
         }
       }
@@ -74,7 +77,7 @@ export async function POST() {
       const currentStock = part.inventory?.currentQty || 0;
 
       // Get incoming orders
-      const incomingQty = part.orderItems.reduce((sum, item) => sum + item.quantity, 0);
+      const incomingQty = part.orderItems.reduce((sum, item) => sum + item.orderQty, 0);
 
       // Calculate net requirement
       const availableStock = currentStock + incomingQty - part.safetyStock;
@@ -89,7 +92,7 @@ export async function POST() {
       let recommendedOrderDate: Date | null = null;
       if (earliestDeliveryDate && recommendedOrderQty > 0) {
         recommendedOrderDate = new Date(earliestDeliveryDate);
-        recommendedOrderDate.setDate(recommendedOrderDate.getDate() - part.leadTime);
+        recommendedOrderDate.setDate(recommendedOrderDate.getDate() - part.leadTimeDays);
       }
 
       // Determine urgency
@@ -102,15 +105,15 @@ export async function POST() {
       const result = await prisma.mrpResult.create({
         data: {
           partId: part.id,
-          totalRequirement: Math.round(totalRequirement),
+          calculationDate: now,
+          grossRequirement: Math.round(totalRequirement),
           currentStock,
+          reservedQty: 0,
           incomingQty,
-          safetyStock: part.safetyStock,
           netRequirement: Math.round(netRequirement),
-          recommendedOrderQty: Math.round(recommendedOrderQty),
-          recommendedOrderDate,
-          urgency,
-          calculatedAt: now,
+          suggestedOrderQty: Math.round(recommendedOrderQty),
+          suggestedOrderDate: recommendedOrderDate,
+          status: urgency,
         },
         include: {
           part: true,

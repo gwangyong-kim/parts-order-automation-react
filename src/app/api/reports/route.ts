@@ -60,11 +60,11 @@ async function getInventoryStatusReport() {
   ]);
 
   const lowStockItems = inventory.filter(
-    (item) => item.currentQty <= (item.safetyStock || 0)
+    (item) => item.currentQty <= (item.part.safetyStock || 0)
   );
 
   const overStockItems = inventory.filter(
-    (item) => item.currentQty > (item.maxStock || Infinity)
+    (item) => item.currentQty > ((item.part.safetyStock || 0) * 3)
   );
 
   const totalValue = inventory.reduce(
@@ -95,10 +95,10 @@ async function getInventoryStatusReport() {
       totalInventoryValue: totalValue,
     },
     lowStockItems: lowStockItems.map((item) => ({
-      partNumber: item.part.partNumber,
+      partNumber: item.part.partCode,
       partName: item.part.partName,
       currentQty: item.currentQty,
-      safetyStock: item.safetyStock,
+      safetyStock: item.part.safetyStock,
       category: item.part.category?.name,
     })),
     categoryStats,
@@ -163,7 +163,7 @@ async function getInventoryMovementReport() {
     recentTransactions: transactions.slice(0, 20).map((t) => ({
       transactionCode: t.transactionCode,
       type: t.transactionType,
-      partNumber: t.part.partNumber,
+      partNumber: t.part.partCode,
       partName: t.part.partName,
       quantity: t.quantity,
       date: t.createdAt,
@@ -288,7 +288,7 @@ async function getOrderHistoryReport() {
       }))
       .sort((a, b) => a.month.localeCompare(b.month)),
     recentOrders: orders.slice(0, 20).map((o) => ({
-      orderNumber: o.orderNumber,
+      orderNumber: o.orderCode,
       supplier: o.supplier?.name,
       orderDate: o.orderDate,
       expectedDate: o.expectedDate,
@@ -399,7 +399,7 @@ async function getCostAnalysisReport() {
   // Top expensive items
   const topCostItems = parts
     .map((p) => ({
-      partNumber: p.partNumber,
+      partNumber: p.partCode,
       partName: p.partName,
       unitPrice: p.unitPrice,
       currentQty: p.inventory?.currentQty || 0,
@@ -439,9 +439,9 @@ async function getSupplierPerformanceReport() {
     const completedOrders = s.orders.filter((o) => o.status === "RECEIVED");
     const onTimeOrders = completedOrders.filter(
       (o) =>
-        o.receivedAt &&
+        o.actualDate &&
         o.expectedDate &&
-        new Date(o.receivedAt) <= new Date(o.expectedDate)
+        new Date(o.actualDate) <= new Date(o.expectedDate)
     );
 
     return {
@@ -483,9 +483,6 @@ async function getAuditSummaryReport() {
   const [audits, discrepancyLogs] = await Promise.all([
     prisma.auditRecord.findMany({
       include: {
-        createdBy: {
-          select: { id: true, name: true },
-        },
         items: {
           include: {
             part: true,
@@ -535,14 +532,14 @@ async function getAuditSummaryReport() {
       totalItems: a.totalItems,
       matchedItems: a.matchedItems,
       discrepancyItems: a.discrepancyItems,
-      createdBy: a.createdBy?.name,
+      performedBy: a.performedBy,
     })),
     recentDiscrepancies: discrepancyLogs.slice(0, 20).map((d) => ({
-      partNumber: d.part.partNumber,
+      partNumber: d.part.partCode,
       partName: d.part.partName,
       systemQty: d.systemQty,
       actualQty: d.actualQty,
-      difference: d.difference,
+      difference: d.discrepancy,
       status: d.status,
       createdAt: d.createdAt,
     })),

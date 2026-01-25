@@ -1,0 +1,32 @@
+# ==========================================
+# PartSync MRP - Development Dockerfile
+# ==========================================
+# Hot-reload enabled for development
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for native modules
+RUN apk add --no-cache libc6-compat
+
+# Copy package files
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
+
+# Install dependencies
+RUN npm install
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Create data directory
+RUN mkdir -p /app/data
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Start development server
+CMD ["npm", "run", "dev"]

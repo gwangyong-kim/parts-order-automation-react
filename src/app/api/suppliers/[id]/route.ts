@@ -34,7 +34,7 @@ export async function PUT(request: Request, { params }: Params) {
     const supplier = await prisma.supplier.update({
       where: { id: parseInt(id) },
       data: {
-        supplierCode: body.supplierCode,
+        code: body.supplierCode || body.code,
         name: body.name,
         contactPerson: body.contactPerson,
         phone: body.phone,

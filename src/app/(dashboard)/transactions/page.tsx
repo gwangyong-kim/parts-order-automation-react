@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   ArrowLeftRight,
   Search,
@@ -453,7 +454,12 @@ export default function TransactionsPage() {
                       </td>
                       <td className="table-cell">
                         <div>
-                          <p className="font-medium">{tx.part.partNumber}</p>
+                          <Link
+                            href={`/parts/${tx.part.id}`}
+                            className="font-medium text-[var(--primary)] hover:underline"
+                          >
+                            {tx.part.partNumber}
+                          </Link>
                           <p className="text-sm text-[var(--text-muted)]">{tx.part.partName}</p>
                         </div>
                       </td>

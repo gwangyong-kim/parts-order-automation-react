@@ -43,6 +43,7 @@ const defaultValues: PartFormData = {
   leadTime: 7,
   categoryId: null,
   supplierId: null,
+  storageLocation: null,
 };
 
 export default function PartForm({
@@ -89,6 +90,7 @@ export default function PartForm({
           leadTime: initialData.leadTime,
           categoryId: initialData.categoryId,
           supplierId: initialData.supplierId,
+          storageLocation: initialData.storageLocation || null,
         });
       } else {
         reset(defaultValues);
@@ -203,6 +205,15 @@ export default function PartForm({
             }))}
             placeholder="공급업체 선택"
           />
+          <div className="md:col-span-2">
+            <Input
+              label="저장위치"
+              {...register("storageLocation")}
+              error={errors.storageLocation?.message}
+              placeholder="예: A-01-02, 창고1-선반3"
+              helperText="사내 규정 위치코드 (예: 구역-열-단)"
+            />
+          </div>
         </div>
 
         <ModalFooter>

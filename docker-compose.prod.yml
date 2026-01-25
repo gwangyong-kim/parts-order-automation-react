@@ -1,0 +1,20 @@
+# ==========================================
+# PartSync MRP - Production Overrides
+# ==========================================
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=${AUTH_URL:-https://partsync.yourdomain.com}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://partsync.yourdomain.com}
+    # For production with reverse proxy (Nginx, Traefik, etc.)
+    # Uncomment and configure labels for your setup
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.partsync.rule=Host(`partsync.yourdomain.com`)"
+    #   - "traefik.http.routers.partsync.entrypoints=websecure"
+    #   - "traefik.http.routers.partsync.tls.certresolver=letsencrypt"

@@ -6,6 +6,7 @@
 
 import prisma from "@/lib/prisma";
 import type { TransactionType } from "@/types/entities";
+import { createLowStockNotification, createInboundCompletedNotification } from "./notification.service";
 
 // ==================== 타입 정의 ====================
 
@@ -151,6 +152,35 @@ export async function processTransaction(
 
     return { transaction, inventory: updatedInventory };
   });
+
+  // 알림 생성 (비동기, 에러 무시)
+  try {
+    // 입고 완료 알림
+    if (transactionType === "INBOUND") {
+      createInboundCompletedNotification(
+        part.partCode,
+        part.partName || "",
+        quantity
+      ).catch(console.error);
+    }
+
+    // 저재고 알림 (출고 후 안전재고 이하인 경우)
+    if (
+      (transactionType === "OUTBOUND" || transactionType === "ADJUSTMENT") &&
+      afterQty <= (part.safetyStock ?? 0) &&
+      beforeQty > (part.safetyStock ?? 0)
+    ) {
+      createLowStockNotification(
+        part.partCode,
+        part.partName || "",
+        afterQty,
+        part.safetyStock ?? 0
+      ).catch(console.error);
+    }
+  } catch (e) {
+    // 알림 생성 실패는 트랜잭션에 영향 주지 않음
+    console.error("Failed to create notification:", e);
+  }
 
   return {
     transaction: {

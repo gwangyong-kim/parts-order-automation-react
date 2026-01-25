@@ -25,6 +25,7 @@ export const partSchema = z.object({
   safetyStock: z.number().int().min(0, "안전재고는 0 이상이어야 합니다."),
   minOrderQty: z.number().int().min(1, "최소발주량은 1 이상이어야 합니다."),
   leadTime: z.number().int().min(0, "리드타임은 0 이상이어야 합니다."),
+  storageLocation: z.string().max(100, "저장위치는 100자 이내로 입력해주세요.").nullable().optional(),
 });
 
 // 파츠 수정 스키마 (모든 필드 optional)
@@ -35,18 +36,18 @@ export const partUpdateSchema = partSchema.partial().extend({
 // API 요청용 스키마 (DB 필드명 매핑)
 export const partApiSchema = z.object({
   partCode: z.string().min(1, "파츠코드를 입력해주세요."),
-  partName: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  categoryId: z.number().int().positive().nullable().optional(),
-  supplierId: z.number().int().positive().nullable().optional(),
+  partName: z.string().nullable().optional().transform(v => v ?? undefined),
+  description: z.string().nullable().optional().transform(v => v ?? undefined),
+  categoryId: z.number().int().positive().nullable().optional().transform(v => v ?? undefined),
+  supplierId: z.number().int().positive().nullable().optional().transform(v => v ?? undefined),
   unit: z.string().min(1, "단위를 선택해주세요."),
   unitPrice: z.number().min(0, "단가는 0 이상이어야 합니다."),
   safetyStock: z.number().int().min(0).default(0),
   reorderPoint: z.number().int().min(0).default(0),
   minOrderQty: z.number().int().min(1).default(1),
   leadTimeDays: z.number().int().min(0).default(7),
-  storageLocation: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  storageLocation: z.string().nullable().optional().transform(v => v ?? undefined),
+  notes: z.string().nullable().optional().transform(v => v ?? undefined),
   isActive: z.boolean().default(true),
 });
 

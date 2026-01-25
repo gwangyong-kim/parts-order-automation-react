@@ -12,9 +12,6 @@ export async function GET(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
       include: {
         part: true,
-        createdBy: {
-          select: { id: true, name: true },
-        },
       },
     });
 

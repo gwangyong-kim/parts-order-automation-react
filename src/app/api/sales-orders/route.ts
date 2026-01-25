@@ -30,12 +30,14 @@ export async function POST(request: Request) {
 
     const salesOrder = await prisma.salesOrder.create({
       data: {
-        orderNumber: body.orderNumber,
-        customerName: body.customerName,
+        orderCode: body.orderNumber || body.orderCode,
+        division: body.customerName || body.division,
+        manager: body.manager,
+        project: body.project,
         orderDate: new Date(body.orderDate),
-        deliveryDate: new Date(body.deliveryDate),
-        status: body.status || "PENDING",
-        totalAmount: body.totalAmount || 0,
+        dueDate: body.deliveryDate || body.dueDate ? new Date(body.deliveryDate || body.dueDate) : undefined,
+        status: body.status || "RECEIVED",
+        totalQty: body.totalAmount || body.totalQty || 0,
         notes: body.notes,
       },
       include: {

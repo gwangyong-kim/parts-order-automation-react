@@ -41,12 +41,14 @@ export async function PUT(request: Request, { params }: Params) {
     const salesOrder = await prisma.salesOrder.update({
       where: { id: parseInt(id) },
       data: {
-        orderNumber: body.orderNumber,
-        customerName: body.customerName,
-        orderDate: new Date(body.orderDate),
-        deliveryDate: new Date(body.deliveryDate),
+        orderCode: body.orderNumber || body.orderCode,
+        division: body.customerName || body.division,
+        manager: body.manager,
+        project: body.project,
+        orderDate: body.orderDate ? new Date(body.orderDate) : undefined,
+        dueDate: body.deliveryDate || body.dueDate ? new Date(body.deliveryDate || body.dueDate) : undefined,
         status: body.status,
-        totalAmount: body.totalAmount,
+        totalQty: body.totalAmount || body.totalQty,
         notes: body.notes,
       },
       include: {

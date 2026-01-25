@@ -295,19 +295,21 @@ export async function updateMrpResultStatus(
  * 저재고 파츠 조회
  */
 export async function getLowStockParts() {
-  return prisma.part.findMany({
+  // Get all active parts with inventory and filter by safety stock
+  const parts = await prisma.part.findMany({
     where: {
       isActive: true,
-      inventory: {
-        currentQty: {
-          lte: prisma.part.fields.safetyStock,
-        },
-      },
     },
     include: {
       inventory: true,
       supplier: true,
       category: true,
     },
+  });
+
+  // Filter parts where inventory currentQty <= safetyStock
+  return parts.filter((part) => {
+    const currentQty = part.inventory?.currentQty ?? 0;
+    return currentQty <= part.safetyStock;
   });
 }

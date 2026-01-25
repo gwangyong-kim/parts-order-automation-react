@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { saveBulkUploadLog } from "@/lib/bulk-upload-logger";
 
 // 발주 코드 자동 생성 (PO2501-0001 형식)
 async function generatePOCode(): Promise<string> {
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
             const items = await prisma.orderItem.findMany({
               where: { orderId: existingOrder.id },
             });
-            const totalAmount = items.reduce((sum, item) => sum + item.totalPrice, 0);
+            const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
 
             await prisma.order.update({
               where: { id: existingOrder.id },
@@ -206,6 +207,9 @@ export async function POST(request: Request) {
         results.errors.push(`행 ${rowNum}: ${(err as Error).message}`);
       }
     }
+
+    // 업로드 로그 저장
+    await saveBulkUploadLog("ORDERS", results);
 
     return NextResponse.json({
       message: `업로드 완료: 성공 ${results.success}건, 실패 ${results.failed}건`,

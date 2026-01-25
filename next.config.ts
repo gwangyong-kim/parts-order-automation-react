@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable standalone output for Docker builds
+  output: "standalone",
+
   // Optimize barrel imports for better dev/build performance
   // Reference: https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
   experimental: {

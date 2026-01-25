@@ -18,6 +18,10 @@ import {
   Users,
   Settings,
   Layers,
+  Upload,
+  Map,
+  Layout,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +65,9 @@ const navigationGroups: NavGroup[] = [
     items: [
       { label: "현재고 현황", href: "/inventory", icon: Warehouse },
       { label: "입출고 내역", href: "/transactions", icon: ArrowLeftRight },
+      { label: "피킹 작업", href: "/picking", icon: ListChecks },
+      { label: "창고 맵", href: "/floor-map", icon: Map },
+      { label: "창고 관리", href: "/warehouse", icon: Layout },
       { label: "실사 관리", href: "/audit", icon: ClipboardCheck },
     ],
   },
@@ -75,6 +82,7 @@ const navigationGroups: NavGroup[] = [
     title: "시스템",
     items: [
       { label: "사용자 관리", href: "/users", icon: Users },
+      { label: "업로드 로그", href: "/upload-logs", icon: Upload },
       { label: "시스템 설정", href: "/settings", icon: Settings },
     ],
   },

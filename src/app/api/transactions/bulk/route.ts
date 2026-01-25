@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { saveBulkUploadLog } from "@/lib/bulk-upload-logger";
 
 // 트랜잭션 코드 자동 생성
 async function generateTxCode(type: string): Promise<string> {
@@ -156,6 +157,9 @@ export async function POST(request: Request) {
         results.errors.push(`행 ${rowNum}: ${(err as Error).message}`);
       }
     }
+
+    // 업로드 로그 저장
+    await saveBulkUploadLog("TRANSACTIONS", results);
 
     return NextResponse.json({
       message: `업로드 완료: 성공 ${results.success}건, 실패 ${results.failed}건`,

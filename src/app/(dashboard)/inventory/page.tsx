@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   Warehouse,
   Search,
@@ -251,7 +252,14 @@ export default function InventoryPage() {
                         isLowStock ? "bg-[var(--danger)]/5" : ""
                       }`}
                     >
-                      <td className="table-cell font-medium">{item.part.partNumber}</td>
+                      <td className="table-cell font-medium">
+                        <Link
+                          href="/parts"
+                          className="text-[var(--primary)] hover:underline"
+                        >
+                          {item.part.partNumber}
+                        </Link>
+                      </td>
                       <td className="table-cell">{item.part.partName}</td>
                       <td className="table-cell">{item.part.unit}</td>
                       <td className="table-cell text-right font-medium tabular-nums">

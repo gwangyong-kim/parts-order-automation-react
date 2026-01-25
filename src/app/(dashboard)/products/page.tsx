@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Box,
   Plus,
@@ -16,7 +18,7 @@ import {
 } from "lucide-react";
 import ProductForm from "@/components/forms/ProductForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import ExcelUpload from "@/components/ui/ExcelUpload";
+import MultiSheetUpload from "@/components/ui/MultiSheetUpload";
 import { useToast } from "@/components/ui/Toast";
 
 interface BomItem {
@@ -43,12 +45,48 @@ interface Product {
   bomItems: BomItem[];
 }
 
-const productUploadFields = [
-  { name: "제품코드", description: "고유 제품 코드", required: true, type: "text", example: "PRD-001" },
-  { name: "제품명", description: "제품 이름", required: false, type: "text", example: "스마트 컨트롤러" },
-  { name: "설명", description: "제품 설명", required: false, type: "text", example: "산업용 IoT 컨트롤러" },
-  { name: "카테고리", description: "제품 분류", required: false, type: "text", example: "완제품" },
-  { name: "단위", description: "수량 단위", required: false, type: "text", example: "SET" },
+interface BomItemInput {
+  partId: number;
+  quantityPerUnit: number;
+  lossRate: number;
+  notes: string;
+}
+
+interface ProductFormData {
+  productCode: string;
+  productName: string | null;
+  description: string | null;
+  bomItems: BomItemInput[];
+}
+
+// 다중 시트 업로드 설정
+const productUploadSheets = [
+  {
+    name: "products",
+    label: "제품",
+    description: "제품 기본 정보를 등록합니다. 제품코드는 필수입니다.",
+    required: true,
+    fields: [
+      { name: "제품코드", description: "고유 제품 코드", required: true, type: "text", example: "PRD-001" },
+      { name: "제품명", description: "제품 이름", required: false, type: "text", example: "스마트 컨트롤러" },
+      { name: "설명", description: "제품 설명", required: false, type: "text", example: "산업용 IoT 컨트롤러" },
+      { name: "카테고리", description: "제품 분류", required: false, type: "text", example: "완제품" },
+      { name: "단위", description: "수량 단위", required: false, type: "text", example: "SET" },
+    ],
+  },
+  {
+    name: "bom",
+    label: "BOM",
+    description: "제품별 자재명세(BOM)를 등록합니다. 제품코드와 파츠코드로 연결됩니다.",
+    required: false,
+    fields: [
+      { name: "제품코드", description: "BOM을 등록할 제품 코드", required: true, type: "text", example: "PRD-001" },
+      { name: "파츠코드", description: "파츠(부품) 코드", required: true, type: "text", example: "PART-001" },
+      { name: "수량", description: "제품 1개당 필요한 파츠 수량", required: true, type: "number", example: "2" },
+      { name: "로스율", description: "손실 배수 (1.05 = 5% 손실, 1.1 = 10% 손실)", required: false, type: "number", example: "1.05" },
+      { name: "비고", description: "추가 메모", required: false, type: "text", example: "필수 부품" },
+    ],
+  },
 ];
 
 async function fetchProducts(): Promise<Product[]> {
@@ -87,6 +125,8 @@ async function deleteProduct(id: number): Promise<void> {
 export default function ProductsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -101,6 +141,20 @@ export default function ProductsPage() {
     queryKey: ["products"],
     queryFn: fetchProducts,
   });
+
+  // URL에서 edit 파라미터가 있으면 해당 제품 편집 모달 열기
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && products) {
+      const productToEdit = products.find((p) => p.id === parseInt(editId));
+      if (productToEdit) {
+        setSelectedProduct(productToEdit);
+        setShowFormModal(true);
+        // URL에서 edit 파라미터 제거
+        router.replace("/products", { scroll: false });
+      }
+    }
+  }, [searchParams, products, router]);
 
   const createMutation = useMutation({
     mutationFn: createProduct,
@@ -156,11 +210,11 @@ export default function ProductsPage() {
     setShowDeleteDialog(true);
   };
 
-  const handleFormSubmit = (data: Partial<Product>) => {
+  const handleFormSubmit = (data: ProductFormData) => {
     if (selectedProduct) {
-      updateMutation.mutate({ id: selectedProduct.id, data });
+      updateMutation.mutate({ id: selectedProduct.id, data: data as Partial<Product> });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(data as Partial<Product>);
     }
   };
 
@@ -170,25 +224,47 @@ export default function ProductsPage() {
     }
   };
 
-  const handleBulkUpload = async (data: Record<string, unknown>[]) => {
+  const handleBulkUpload = async (data: Record<string, Record<string, unknown>[]>) => {
     setIsUploading(true);
     try {
       const res = await fetch("/api/products/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({
+          products: data.products,
+          bom: data.bom,
+        }),
       });
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || "업로드 실패");
+        // HTTP 오류 응답
+        const errorDetails = result.errors?.length > 0
+          ? result.errors.slice(0, 5).join("\n") + (result.errors.length > 5 ? `\n... 외 ${result.errors.length - 5}건` : "")
+          : result.error || "업로드 실패";
+        throw new Error(errorDetails);
+      }
+
+      // 전체 실패인 경우 (성공 0건)
+      if (result.success === 0 && result.failed > 0) {
+        const errorDetails = result.errors?.length > 0
+          ? result.errors.slice(0, 5).join("\n") + (result.errors.length > 5 ? `\n... 외 ${result.errors.length - 5}건` : "")
+          : "모든 항목 업로드 실패";
+        throw new Error(errorDetails);
       }
 
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success(result.message);
-      setShowUploadModal(false);
+
+      // 부분 성공 시 상세 결과 표시
+      if (result.errors?.length > 0) {
+        const errorSummary = result.errors.slice(0, 3).join(", ");
+        toast.warning(`${result.message}\n일부 오류: ${errorSummary}`);
+      } else {
+        toast.success(result.message);
+      }
+      // 성공 시에만 모달 닫기 (부분 성공 포함)
     } catch (error) {
-      toast.error((error as Error).message);
+      // 오류를 다시 throw하여 MultiSheetUpload에서 표시
       throw error;
     } finally {
       setIsUploading(false);
@@ -378,10 +454,10 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Products Table */}
+      <div className="glass-card overflow-hidden">
         {filteredProducts?.length === 0 ? (
-          <div className="col-span-full glass-card p-8 text-center">
+          <div className="p-8 text-center">
             <Box className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
             <p className="text-[var(--text-muted)]">
               {searchTerm || activeFilterCount > 0 ? "검색 결과가 없습니다." : "등록된 제품이 없습니다."}
@@ -396,64 +472,90 @@ export default function ProductsPage() {
             )}
           </div>
         ) : (
-          filteredProducts?.map((product) => (
-            <div key={product.id} className="glass-card p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-[var(--primary)]/10 rounded-xl flex items-center justify-center">
-                  <Box className="w-6 h-6 text-[var(--primary)]" />
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleEdit(product)}
-                    className="table-action-btn edit"
-                    title="수정"
-                    aria-label={`${product.productName || product.productCode} 수정`}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">제품코드</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">제품명</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">카테고리</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">설명</th>
+                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">BOM 항목</th>
+                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">상태</th>
+                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts?.map((product) => (
+                  <tr
+                    key={product.id}
+                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]/50 transition-colors"
                   >
-                    <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(product)}
-                    className="table-action-btn delete"
-                    title="삭제"
-                    aria-label={`${product.productName || product.productCode} 삭제`}
-                  >
-                    <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                  </button>
-                </div>
-              </div>
-
-              <h3 className="font-semibold text-[var(--text-primary)] mb-1">
-                {product.productName || product.productCode}
-              </h3>
-              {product.productName && (
-                <p className="text-sm text-[var(--text-muted)] mb-3">
-                  {product.productCode}
-                </p>
-              )}
-
-              {product.description && (
-                <p className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2">
-                  {product.description}
-                </p>
-              )}
-
-              <div className="flex items-center justify-between pt-4 border-t border-[var(--glass-border)]">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-[var(--text-muted)]" />
-                  <span className="text-sm text-[var(--text-secondary)]">
-                    BOM {product.bomItems.length}개 항목
-                  </span>
-                </div>
-                <span
-                  className={`badge ${
-                    product.isActive ? "badge-success" : "badge-secondary"
-                  }`}
-                >
-                  {product.isActive ? "활성" : "비활성"}
-                </span>
-              </div>
-            </div>
-          ))
+                    <td className="px-6 py-4">
+                      <Link
+                        href={`/products/${product.id}`}
+                        className="font-mono text-sm text-[var(--primary)] hover:underline cursor-pointer"
+                      >
+                        {product.productCode}
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-[var(--text-primary)]">
+                        {product.productName || "-"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-[var(--text-secondary)]">
+                        {product.category || "-"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 max-w-xs">
+                      <span className="text-sm text-[var(--text-muted)] truncate block">
+                        {product.description || "-"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Layers className="w-4 h-4 text-[var(--text-muted)]" />
+                        <span className="text-sm text-[var(--text-secondary)]">
+                          {product.bomItems.length}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span
+                        className={`badge ${
+                          product.isActive ? "badge-success" : "badge-secondary"
+                        }`}
+                      >
+                        {product.isActive ? "활성" : "비활성"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="table-action-btn edit"
+                          title="수정"
+                          aria-label={`${product.productName || product.productCode} 수정`}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product)}
+                          className="table-action-btn delete"
+                          title="삭제"
+                          aria-label={`${product.productName || product.productCode} 삭제`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -469,13 +571,14 @@ export default function ProductsPage() {
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 
-      {/* Excel Upload Modal */}
-      <ExcelUpload
+      {/* Multi-Sheet Upload Modal */}
+      <MultiSheetUpload
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUpload={handleBulkUpload}
-        title="제품 대량 등록"
-        fields={productUploadFields}
+        title="제품 및 BOM 대량 등록"
+        sheets={productUploadSheets}
+        templateName="제품_BOM_업로드"
         isLoading={isUploading}
       />
 

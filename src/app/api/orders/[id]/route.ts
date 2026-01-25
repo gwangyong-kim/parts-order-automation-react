@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { createOrderStatusChangedNotification } from "@/services/notification.service";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -16,12 +17,6 @@ export async function GET(request: Request, { params }: Params) {
           include: {
             part: true,
           },
-        },
-        createdBy: {
-          select: { id: true, name: true },
-        },
-        approvedBy: {
-          select: { id: true, name: true },
         },
       },
     });
@@ -45,17 +40,22 @@ export async function PUT(request: Request, { params }: Params) {
     const { id } = await params;
     const body = await request.json();
 
+    // 기존 주문 조회 (상태 변경 감지용)
+    const existingOrder = await prisma.order.findUnique({
+      where: { id: parseInt(id) },
+    });
+
     const order = await prisma.order.update({
       where: { id: parseInt(id) },
       data: {
-        orderNumber: body.orderNumber,
+        orderCode: body.orderNumber,
         supplierId: body.supplierId,
         orderDate: new Date(body.orderDate),
         expectedDate: body.expectedDate ? new Date(body.expectedDate) : null,
         status: body.status,
         totalAmount: body.totalAmount,
         notes: body.notes,
-        approvedById: body.approvedById,
+        approvedBy: body.approvedBy,
         approvedAt: body.approvedAt ? new Date(body.approvedAt) : null,
       },
       include: {
@@ -63,6 +63,14 @@ export async function PUT(request: Request, { params }: Params) {
         items: true,
       },
     });
+
+    // 상태가 변경된 경우 알림 생성
+    if (existingOrder && existingOrder.status !== body.status) {
+      createOrderStatusChangedNotification(
+        order.orderCode,
+        body.status
+      ).catch(console.error);
+    }
 
     return NextResponse.json(order);
   } catch (error) {

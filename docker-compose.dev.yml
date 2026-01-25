@@ -1,0 +1,31 @@
+# ==========================================
+# PartSync MRP - Development Configuration
+# ==========================================
+# Usage: docker-compose -f docker-compose.dev.yml up -d
+# This runs a development environment with hot-reload
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: partsync-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=file:/app/data/dev.db
+      - AUTH_SECRET=dev-secret-key
+      - AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_NAME=PartSync (Dev)
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    volumes:
+      # Mount source code for hot-reload
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      # Persist database
+      - partsync-dev-data:/app/data
+
+volumes:
+  partsync-dev-data:

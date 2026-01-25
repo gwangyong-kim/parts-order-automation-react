@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       leadTimeDays: body.leadTime || body.leadTimeDays || 7,
       categoryId: body.categoryId || null,
       supplierId: body.supplierId || null,
+      storageLocation: body.storageLocation || null,
     };
 
     // Zod 스키마로 검증
@@ -59,8 +60,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const { categoryId, supplierId, ...restData } = result.data;
     const part = await prisma.part.create({
-      data: result.data,
+      data: {
+        ...restData,
+        partName: restData.partName || "",
+        ...(categoryId && { category: { connect: { id: categoryId } } }),
+        ...(supplierId && { supplier: { connect: { id: supplierId } } }),
+      },
       include: {
         category: true,
         supplier: true,

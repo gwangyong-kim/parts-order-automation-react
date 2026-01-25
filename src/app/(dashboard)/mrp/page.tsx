@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   Calculator,
   Play,
@@ -242,7 +243,12 @@ export default function MrpPage() {
                     </td>
                     <td className="table-cell">
                       <div>
-                        <p className="font-medium">{result.part.partNumber}</p>
+                        <Link
+                          href="/parts"
+                          className="font-medium text-[var(--primary)] hover:underline"
+                        >
+                          {result.part.partNumber}
+                        </Link>
                         <p className="text-sm text-[var(--text-muted)]">{result.part.partName}</p>
                       </div>
                     </td>

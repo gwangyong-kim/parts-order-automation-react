@@ -435,7 +435,14 @@ export default function SalesOrdersPage() {
                     key={order.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium">{order.orderNumber}</td>
+                    <td className="table-cell font-medium">
+                      <button
+                        onClick={() => handleEdit(order)}
+                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                      >
+                        {order.orderNumber}
+                      </button>
+                    </td>
                     <td className="table-cell">{order.customerName}</td>
                     <td className="table-cell">
                       <span className="flex items-center gap-1">

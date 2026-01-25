@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  Bell,
-  Search,
   User,
   LogOut,
   Settings,
   ChevronDown,
   Menu,
 } from "lucide-react";
+import GlobalSearch from "./GlobalSearch";
+import NotificationDropdown from "./NotificationDropdown";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -19,7 +19,6 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: "/login" });
@@ -37,25 +36,13 @@ export default function Header({ onMenuClick }: HeaderProps) {
         </button>
 
         {/* Search */}
-        <div className="header-search relative hidden sm:flex items-center">
-          <Search className="absolute left-3 w-4 h-4 text-[var(--gray-400)]" />
-          <input
-            type="text"
-            placeholder="검색..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64 pl-10 pr-4 py-2 bg-transparent border-none text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-400)] focus:outline-none"
-          />
-        </div>
+        <GlobalSearch />
       </div>
 
       {/* Right Section */}
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <button className="relative p-2.5 rounded-xl text-[var(--gray-500)] hover:bg-[var(--gray-100)] hover:text-[var(--gray-700)] transition-all">
-          <Bell className="w-5 h-5" />
-          <span className="header-notification-badge" />
-        </button>
+        <NotificationDropdown />
 
         {/* User Menu */}
         <div className="relative">

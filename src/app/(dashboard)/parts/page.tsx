@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Package,
   Plus,
@@ -19,11 +21,13 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
 import type { Part, Category } from "@/types/entities";
+import type { PartFormData } from "@/schemas/part.schema";
 
 const partUploadFields = [
   { name: "파츠코드", description: "고유 파츠 코드", required: true, type: "text", example: "P2501-0001" },
   { name: "파츠명", description: "파츠 이름", required: false, type: "text", example: "볼트 M8" },
   { name: "규격", description: "파츠 규격/사양", required: false, type: "text", example: "SUS304" },
+  { name: "저장위치", description: "사내 규정 위치코드", required: false, type: "text", example: "A-01-02" },
   { name: "단위", description: "수량 단위", required: false, type: "text", example: "EA" },
   { name: "단가", description: "단가 (원)", required: false, type: "number", example: "1000" },
   { name: "안전재고", description: "최소 유지 재고량", required: false, type: "number", example: "100" },
@@ -75,6 +79,8 @@ async function deletePart(id: number): Promise<void> {
 export default function PartsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -107,6 +113,20 @@ export default function PartsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // URL에서 edit 파라미터가 있으면 해당 파츠 편집 모달 열기
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && parts) {
+      const partToEdit = parts.find((p) => p.id === parseInt(editId));
+      if (partToEdit) {
+        setSelectedPart(partToEdit);
+        setShowFormModal(true);
+        // URL에서 edit 파라미터 제거
+        router.replace("/parts", { scroll: false });
+      }
+    }
+  }, [searchParams, parts, router]);
+
   // 내보내기 기능
   const handleExport = () => {
     if (!filteredParts || filteredParts.length === 0) {
@@ -114,11 +134,12 @@ export default function PartsPage() {
       return;
     }
 
-    const headers = ["파츠번호", "파츠명", "규격", "단위", "단가", "안전재고", "카테고리", "공급업체", "상태"];
+    const headers = ["파츠번호", "파츠명", "규격", "저장위치", "단위", "단가", "안전재고", "카테고리", "공급업체", "상태"];
     const rows = filteredParts.map((part) => [
       part.partNumber,
       part.partName,
       part.description || "",
+      part.storageLocation || "",
       part.unit,
       part.unitPrice,
       part.safetyStock,
@@ -206,11 +227,11 @@ export default function PartsPage() {
     setShowDeleteDialog(true);
   };
 
-  const handleFormSubmit = (data: Partial<Part>) => {
+  const handleFormSubmit = (data: PartFormData) => {
     if (selectedPart) {
-      updateMutation.mutate({ id: selectedPart.id, data });
+      updateMutation.mutate({ id: selectedPart.id, data: data as Partial<Part> });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(data as Partial<Part>);
     }
   };
 
@@ -405,6 +426,7 @@ export default function PartsPage() {
                 <th className="table-header">파츠번호</th>
                 <th className="table-header">파츠명</th>
                 <th className="table-header">규격</th>
+                <th className="table-header">저장위치</th>
                 <th className="table-header">단위</th>
                 <th className="table-header text-right">단가</th>
                 <th className="table-header text-right">안전재고</th>
@@ -417,7 +439,7 @@ export default function PartsPage() {
             <tbody>
               {filteredParts?.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="table-cell text-center py-8">
+                  <td colSpan={11} className="table-cell text-center py-8">
                     <Package className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 파츠가 없습니다."}
@@ -439,11 +461,19 @@ export default function PartsPage() {
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
                     <td className="table-cell font-medium font-mono">
-                      {part.partNumber}
+                      <Link
+                        href={`/parts/${part.id}`}
+                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                      >
+                        {part.partNumber}
+                      </Link>
                     </td>
                     <td className="table-cell">{part.partName}</td>
                     <td className="table-cell text-[var(--text-secondary)] max-w-xs truncate">
                       {part.description || "-"}
+                    </td>
+                    <td className="table-cell font-mono text-sm">
+                      {part.storageLocation || "-"}
                     </td>
                     <td className="table-cell">{part.unit}</td>
                     <td className="table-cell text-right tabular-nums">

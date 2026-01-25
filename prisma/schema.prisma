@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ==================== User & Auth ====================
@@ -126,6 +127,7 @@ model Part {
   auditItems    AuditItem[]
   bomItems      BomItem[]
   mrpResults    MrpResult[]
+  pickingItems  PickingItem[]
 
   @@index([partCode])
   @@index([isActive])
@@ -190,8 +192,9 @@ model SalesOrder {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  items      SalesOrderItem[]
-  mrpResults MrpResult[]
+  items        SalesOrderItem[]
+  mrpResults   MrpResult[]
+  pickingTasks PickingTask[]
 
   @@index([status])
   @@index([dueDate])
@@ -394,6 +397,25 @@ model DiscrepancyLog {
   @@map("discrepancy_log")
 }
 
+// ==================== Notifications ====================
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, WARNING, ERROR, SUCCESS
+  category  String   @default("SYSTEM") // SYSTEM, INVENTORY, ORDER, SUPPLIER
+  isRead    Boolean  @default(false) @map("is_read")
+  link      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
 // ==================== External Integration ====================
 
 model GoogleSheetsSyncConfig {
@@ -454,4 +476,156 @@ model GoogleSheetsRowTracking {
   @@index([configId])
   @@index([rowKey])
   @@map("google_sheets_row_tracking")
+}
+
+// ==================== Bulk Upload Logs ====================
+
+model BulkUploadLog {
+  id           Int      @id @default(autoincrement())
+  uploadType   String   @map("upload_type") // PARTS, PRODUCTS, SALES_ORDERS, ORDERS, TRANSACTIONS
+  fileName     String?  @map("file_name")
+  totalRows    Int      @default(0) @map("total_rows")
+  successCount Int      @default(0) @map("success_count")
+  failedCount  Int      @default(0) @map("failed_count")
+  status       String   @default("COMPLETED") // COMPLETED, PARTIAL, FAILED
+  errors       String?  // JSON string of error details
+  performedBy  String?  @map("performed_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([uploadType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bulk_upload_logs")
+}
+
+// ==================== Warehouse Management ====================
+
+model Warehouse {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?
+  address     String?
+  width       Int      @default(100) // Grid width units for map
+  height      Int      @default(100) // Grid height units for map
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  zones Zone[]
+
+  @@index([code])
+  @@map("warehouses")
+}
+
+model Zone {
+  id          Int      @id @default(autoincrement())
+  warehouseId Int      @map("warehouse_id")
+  code        String   // e.g., "A", "B", "C"
+  name        String
+  description String?
+  color       String   @default("#3B82F6") // For map visualization
+  posX        Int      @default(0) @map("pos_x") // Grid position X
+  posY        Int      @default(0) @map("pos_y") // Grid position Y
+  width       Int      @default(20)
+  height      Int      @default(20)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  racks     Rack[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+  @@map("zones")
+}
+
+model Rack {
+  id         Int      @id @default(autoincrement())
+  zoneId     Int      @map("zone_id")
+  rowNumber  String   @map("row_number") // e.g., "01", "02"
+  posX       Int      @default(0) @map("pos_x") // Position within zone
+  posY       Int      @default(0) @map("pos_y")
+  shelfCount Int      @default(4) @map("shelf_count")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  zone    Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  shelves Shelf[]
+
+  @@unique([zoneId, rowNumber])
+  @@index([zoneId])
+  @@map("racks")
+}
+
+model Shelf {
+  id          Int      @id @default(autoincrement())
+  rackId      Int      @map("rack_id")
+  shelfNumber String   @map("shelf_number") // e.g., "01", "02"
+  // Full location code computed: Zone.code + "-" + Rack.rowNumber + "-" + Shelf.shelfNumber
+  // Example: "A-01-02"
+  capacity    Int      @default(100)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rack Rack @relation(fields: [rackId], references: [id], onDelete: Cascade)
+
+  @@unique([rackId, shelfNumber])
+  @@index([rackId])
+  @@map("shelves")
+}
+
+// ==================== Picking System ====================
+
+model PickingTask {
+  id            Int       @id @default(autoincrement())
+  taskCode      String    @unique @map("task_code") // e.g., "PICK-20250125-001"
+  salesOrderId  Int?      @map("sales_order_id")
+  transactionId Int?      @map("transaction_id") // Reference to outbound transaction
+  priority      String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  status        String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  assignedTo    String?   @map("assigned_to")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  totalItems    Int       @default(0) @map("total_items")
+  pickedItems   Int       @default(0) @map("picked_items")
+  notes         String?
+  createdBy     String?   @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  salesOrder SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  items      PickingItem[]
+
+  @@index([status])
+  @@index([assignedTo])
+  @@index([salesOrderId])
+  @@map("picking_tasks")
+}
+
+model PickingItem {
+  id              Int       @id @default(autoincrement())
+  pickingTaskId   Int       @map("picking_task_id")
+  partId          Int       @map("part_id")
+  storageLocation String    @map("storage_location") // e.g., "A-01-02"
+  requiredQty     Int       @map("required_qty")
+  pickedQty       Int       @default(0) @map("picked_qty")
+  status          String    @default("PENDING") // PENDING, IN_PROGRESS, PICKED, SKIPPED
+  sequence        Int       @default(0) // Order in picking route
+  scannedAt       DateTime? @map("scanned_at")
+  verifiedAt      DateTime? @map("verified_at")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  pickingTask PickingTask @relation(fields: [pickingTaskId], references: [id], onDelete: Cascade)
+  part        Part        @relation(fields: [partId], references: [id])
+
+  @@index([pickingTaskId])
+  @@index([partId])
+  @@index([status])
+  @@map("picking_items")
 }
