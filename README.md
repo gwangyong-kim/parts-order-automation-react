@@ -1,36 +1,141 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PartSync MRP
 
-## Getting Started
+부품 주문 자동화 및 재고 관리 시스템 (MRP - Material Requirements Planning)
 
-First, run the development server:
+## 주요 기능
+
+- **대시보드**: 실시간 재고 현황, 주문 상태, 알림 확인
+- **파츠 관리**: 부품 등록/수정/삭제, 카테고리 분류, 공급업체 연동
+- **제품 관리**: 완제품 BOM(Bill of Materials) 관리
+- **재고 관리**: 실시간 재고 수량 추적, 안전재고 알림
+- **주문 관리**: 발주 생성/승인/완료 프로세스
+- **판매 주문**: 수주 관리 및 출하 처리
+- **피킹 작업**: 창고 출고 작업 관리
+- **창고 관리**: 창고/존/랙/선반 위치 관리
+- **MRP 계산**: 자재 소요량 자동 계산
+- **리포트**: 재고현황, 주문이력, 비용분석 등 다양한 보고서
+- **감사 로그**: 모든 데이터 변경 이력 추적
+
+## 기술 스택
+
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: SQLite (Prisma ORM)
+- **Authentication**: NextAuth.js
+- **State Management**: Zustand, TanStack Query
+- **Charts**: Recharts
+- **Form**: React Hook Form, Zod
+
+## 시작하기
+
+### 로컬 개발 환경
 
 ```bash
+# 의존성 설치
+npm install
+
+# Prisma 클라이언트 생성
+npm run db:generate
+
+# 데이터베이스 스키마 적용
+npm run db:push
+
+# 시드 데이터 입력 (선택)
+npm run db:seed
+
+# 개발 서버 실행
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 에서 확인
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker 배포
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 이미지 빌드 및 컨테이너 실행
+docker-compose up -d
 
-## Learn More
+# 로그 확인
+docker-compose logs -f
 
-To learn more about Next.js, take a look at the following resources:
+# 컨테이너 중지
+docker-compose down
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+http://localhost:3000 에서 확인
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Docker 볼륨 초기화 (데이터 리셋)
 
-## Deploy on Vercel
+```bash
+docker-compose down -v
+docker-compose up -d
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 프로젝트 구조
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── (dashboard)/      # 대시보드 페이지들
+│   │   ├── parts/        # 파츠 관리
+│   │   ├── products/     # 제품 관리
+│   │   ├── orders/       # 발주 관리
+│   │   ├── sales-orders/ # 판매 주문
+│   │   ├── inventory/    # 재고 관리
+│   │   ├── warehouse/    # 창고 관리
+│   │   ├── picking/      # 피킹 작업
+│   │   ├── mrp/          # MRP 계산
+│   │   ├── reports/      # 리포트
+│   │   └── ...
+│   ├── api/              # API 라우트
+│   └── login/            # 로그인 페이지
+├── components/           # 재사용 컴포넌트
+│   ├── ui/               # 기본 UI 컴포넌트
+│   ├── forms/            # 폼 컴포넌트
+│   ├── charts/           # 차트 컴포넌트
+│   ├── layout/           # 레이아웃 컴포넌트
+│   └── ...
+├── lib/                  # 유틸리티 함수
+├── services/             # 비즈니스 로직
+├── schemas/              # Zod 스키마
+└── types/                # TypeScript 타입 정의
+
+prisma/
+├── schema.prisma         # 데이터베이스 스키마
+├── seed.ts               # 로컬 시드 스크립트
+└── seed-docker.ts        # Docker용 시드 스크립트
+```
+
+## 환경 변수
+
+```env
+# 데이터베이스
+DATABASE_URL=file:./dev.db
+
+# 인증
+AUTH_SECRET=your-secret-key
+AUTH_URL=http://localhost:3000
+```
+
+## 기본 계정
+
+| 사용자명 | 비밀번호 | 역할 |
+|---------|---------|------|
+| admin | admin123 | 관리자 |
+
+## 스크립트
+
+| 명령어 | 설명 |
+|--------|------|
+| `npm run dev` | 개발 서버 실행 |
+| `npm run build` | 프로덕션 빌드 |
+| `npm run start` | 프로덕션 서버 실행 |
+| `npm run lint` | ESLint 검사 |
+| `npm run db:push` | DB 스키마 적용 |
+| `npm run db:generate` | Prisma 클라이언트 생성 |
+| `npm run db:seed` | 시드 데이터 입력 |
+| `npm run db:studio` | Prisma Studio 실행 |
+
+## 라이선스
+
+Private
