@@ -10,7 +10,7 @@ import type { MrpUrgency } from "@/types/entities";
 // ==================== 타입 정의 ====================
 
 export interface MrpCalculationInput {
-  /** 특정 부품만 계산 (null이면 전체) */
+  /** 특정 파츠만 계산 (null이면 전체) */
   partIds?: number[];
   /** 특정 수주만 대상 */
   salesOrderIds?: number[];
@@ -90,7 +90,7 @@ export async function calculateMrp(
     });
   }
 
-  // 활성 부품 조회 (재고, BOM, 발주 정보 포함)
+  // 활성 파츠 조회 (재고, BOM, 발주 정보 포함)
   const parts = await prisma.part.findMany({
     where: {
       isActive: true,
@@ -292,7 +292,7 @@ export async function updateMrpResultStatus(
 }
 
 /**
- * 저재고 부품 조회
+ * 저재고 파츠 조회
  */
 export async function getLowStockParts() {
   return prisma.part.findMany({

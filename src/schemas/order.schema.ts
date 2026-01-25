@@ -9,9 +9,9 @@ import { z } from "zod";
 // 발주 품목 스키마
 export const orderItemSchema = z.object({
   partId: z
-    .number({ message: "부품을 선택해주세요." })
+    .number({ message: "파츠를 선택해주세요." })
     .int()
-    .positive("부품을 선택해주세요."),
+    .positive("파츠를 선택해주세요."),
   orderQty: z
     .number({ message: "수량을 입력해주세요." })
     .int("수량은 정수여야 합니다.")

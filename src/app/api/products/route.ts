@@ -34,9 +34,28 @@ export async function POST(request: Request) {
         productCode: body.productCode,
         productName: body.productName,
         description: body.description,
+        bomItems: body.bomItems?.length > 0
+          ? {
+              create: body.bomItems.map((item: {
+                partId: number;
+                quantityPerUnit: number;
+                lossRate?: number;
+                notes?: string;
+              }) => ({
+                partId: item.partId,
+                quantityPerUnit: item.quantityPerUnit,
+                lossRate: item.lossRate || 0,
+                notes: item.notes || null,
+              })),
+            }
+          : undefined,
       },
       include: {
-        bomItems: true,
+        bomItems: {
+          include: {
+            part: true,
+          },
+        },
       },
     });
 

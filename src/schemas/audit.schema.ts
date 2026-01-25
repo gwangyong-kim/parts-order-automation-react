@@ -21,7 +21,7 @@ export const auditSchema = z.object({
   auditDate: z.string().min(1, "실사일을 선택해주세요."),
   auditType: auditTypeSchema,
   notes: z.string().max(1000).nullable().optional(),
-  partIds: z.array(z.number().int().positive()).optional(), // 특정 부품만 실사할 경우
+  partIds: z.array(z.number().int().positive()).optional(), // 특정 파츠만 실사할 경우
 });
 
 // 실사 항목 업데이트 스키마

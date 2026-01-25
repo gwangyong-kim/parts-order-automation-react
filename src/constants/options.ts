@@ -70,7 +70,7 @@ export type ReferenceTypeValue = (typeof REFERENCE_TYPE_OPTIONS)[number]["value"
 
 export const SYNC_TYPE_OPTIONS = [
   { value: "SALES_ORDER", label: "수주" },
-  { value: "PARTS", label: "부품" },
+  { value: "PARTS", label: "파츠" },
   { value: "INVENTORY", label: "재고" },
 ] as const;
 

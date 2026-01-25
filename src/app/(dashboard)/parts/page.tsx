@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Package,
@@ -11,29 +11,37 @@ import {
   Upload,
   Edit2,
   Trash2,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import PartForm from "@/components/forms/PartForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
-import type { Part } from "@/types/entities";
+import type { Part, Category } from "@/types/entities";
 
 const partUploadFields = [
-  { name: "부품코드", description: "고유 부품 코드 (비워두면 자동생성)", required: false, type: "text", example: "P2501-0001" },
-  { name: "부품명", description: "부품 이름", required: true, type: "text", example: "볼트 M8" },
-  { name: "규격", description: "부품 규격/사양", required: false, type: "text", example: "SUS304" },
+  { name: "파츠코드", description: "고유 파츠 코드", required: true, type: "text", example: "P2501-0001" },
+  { name: "파츠명", description: "파츠 이름", required: false, type: "text", example: "볼트 M8" },
+  { name: "규격", description: "파츠 규격/사양", required: false, type: "text", example: "SUS304" },
   { name: "단위", description: "수량 단위", required: false, type: "text", example: "EA" },
   { name: "단가", description: "단가 (원)", required: false, type: "number", example: "1000" },
   { name: "안전재고", description: "최소 유지 재고량", required: false, type: "number", example: "100" },
   { name: "최소발주량", description: "최소 발주 수량", required: false, type: "number", example: "50" },
   { name: "리드타임", description: "조달 소요일 (일)", required: false, type: "number", example: "7" },
-  { name: "카테고리", description: "부품 분류명", required: false, type: "text", example: "체결부품" },
+  { name: "카테고리", description: "파츠 분류명", required: false, type: "text", example: "체결파츠" },
   { name: "공급업체", description: "공급업체명", required: false, type: "text", example: "ABC산업" },
 ];
 
 async function fetchParts(): Promise<Part[]> {
   const res = await fetch("/api/parts");
   if (!res.ok) throw new Error("Failed to fetch parts");
+  return res.json();
+}
+
+async function fetchCategories(): Promise<Category[]> {
+  const res = await fetch("/api/categories");
+  if (!res.ok) throw new Error("Failed to fetch categories");
   return res.json();
 }
 
@@ -73,21 +81,86 @@ export default function PartsPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<number | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const { data: parts, isLoading, error } = useQuery({
     queryKey: ["parts"],
     queryFn: fetchParts,
   });
 
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: fetchCategories,
+  });
+
+  // 필터 드롭다운 외부 클릭시 닫기
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 내보내기 기능
+  const handleExport = () => {
+    if (!filteredParts || filteredParts.length === 0) {
+      toast.error("내보낼 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = ["파츠번호", "파츠명", "규격", "단위", "단가", "안전재고", "카테고리", "공급업체", "상태"];
+    const rows = filteredParts.map((part) => [
+      part.partNumber,
+      part.partName,
+      part.description || "",
+      part.unit,
+      part.unitPrice,
+      part.safetyStock,
+      part.category?.name || "",
+      part.supplier?.name || "",
+      part.isActive ? "활성" : "비활성",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `parts_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("파일이 다운로드되었습니다.");
+  };
+
+  // 필터 초기화
+  const clearFilters = () => {
+    setFilterCategory(null);
+    setFilterStatus("all");
+    setShowFilterDropdown(false);
+  };
+
+  const hasActiveFilters = filterCategory !== null || filterStatus !== "all";
+
   const createMutation = useMutation({
     mutationFn: createPart,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
-      toast.success("부품이 등록되었습니다.");
+      toast.success("파츠가 등록되었습니다.");
       setShowFormModal(false);
     },
     onError: () => {
-      toast.error("부품 등록에 실패했습니다.");
+      toast.error("파츠 등록에 실패했습니다.");
     },
   });
 
@@ -96,12 +169,12 @@ export default function PartsPage() {
       updatePart(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
-      toast.success("부품이 수정되었습니다.");
+      toast.success("파츠가 수정되었습니다.");
       setShowFormModal(false);
       setSelectedPart(null);
     },
     onError: () => {
-      toast.error("부품 수정에 실패했습니다.");
+      toast.error("파츠 수정에 실패했습니다.");
     },
   });
 
@@ -109,12 +182,12 @@ export default function PartsPage() {
     mutationFn: deletePart,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
-      toast.success("부품이 삭제되었습니다.");
+      toast.success("파츠가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedPart(null);
     },
     onError: () => {
-      toast.error("부품 삭제에 실패했습니다.");
+      toast.error("파츠 삭제에 실패했습니다.");
     },
   });
 
@@ -172,11 +245,23 @@ export default function PartsPage() {
     }
   };
 
-  const filteredParts = parts?.filter(
-    (part) =>
+  const filteredParts = parts?.filter((part) => {
+    // 검색어 필터
+    const matchesSearch =
       part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.partName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      part.partName.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // 카테고리 필터
+    const matchesCategory = filterCategory === null || part.categoryId === filterCategory;
+
+    // 상태 필터
+    const matchesStatus =
+      filterStatus === "all" ||
+      (filterStatus === "active" && part.isActive) ||
+      (filterStatus === "inactive" && !part.isActive);
+
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
 
   if (isLoading) {
     return (
@@ -201,12 +286,12 @@ export default function PartsPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">파츠 관리</h1>
           <p className="text-[var(--text-secondary)]">
-            등록된 부품 {parts?.length || 0}개
+            등록된 파츠 {parts?.length || 0}개
           </p>
         </div>
         <button onClick={handleCreate} className="btn btn-primary btn-lg">
           <Plus className="w-5 h-5" />
-          부품 등록
+          파츠 등록
         </button>
       </div>
 
@@ -217,25 +302,92 @@ export default function PartsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
             <input
               type="text"
-              placeholder="부품번호 또는 부품명으로 검색..."
+              placeholder="파츠번호 또는 파츠명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
+              className="input input-with-icon w-full"
               autoComplete="off"
             />
           </div>
           <div className="flex gap-2">
-            <button className="btn-secondary flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              필터
-            </button>
-            <button className="btn-secondary flex items-center gap-2">
+            {/* 필터 드롭다운 */}
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">
+                    {(filterCategory !== null ? 1 : 0) + (filterStatus !== "all" ? 1 : 0)}
+                  </span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
+              </button>
+
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
+                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={clearFilters}
+                        className="text-xs text-[var(--primary-500)] hover:underline"
+                      >
+                        초기화
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 카테고리 필터 */}
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">
+                      카테고리
+                    </label>
+                    <select
+                      value={filterCategory ?? ""}
+                      onChange={(e) => setFilterCategory(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="">전체</option>
+                      {categories?.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 상태 필터 */}
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">
+                      상태
+                    </label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value as "all" | "active" | "inactive")}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="all">전체</option>
+                      <option value="active">활성</option>
+                      <option value="inactive">비활성</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 내보내기 버튼 */}
+            <button onClick={handleExport} className="btn-secondary">
               <Download className="w-4 h-4" />
               내보내기
             </button>
+
+            {/* 가져오기 버튼 */}
             <button
               onClick={() => setShowUploadModal(true)}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary"
             >
               <Upload className="w-4 h-4" />
               가져오기
@@ -250,8 +402,8 @@ export default function PartsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">부품번호</th>
-                <th className="table-header">부품명</th>
+                <th className="table-header">파츠번호</th>
+                <th className="table-header">파츠명</th>
                 <th className="table-header">규격</th>
                 <th className="table-header">단위</th>
                 <th className="table-header text-right">단가</th>
@@ -268,14 +420,14 @@ export default function PartsPage() {
                   <td colSpan={10} className="table-cell text-center py-8">
                     <Package className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
-                      {searchTerm ? "검색 결과가 없습니다." : "등록된 부품이 없습니다."}
+                      {searchTerm ? "검색 결과가 없습니다." : "등록된 파츠가 없습니다."}
                     </p>
                     {!searchTerm && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
                       >
-                        첫 번째 부품 등록하기
+                        첫 번째 파츠 등록하기
                       </button>
                     )}
                   </td>
@@ -346,7 +498,7 @@ export default function PartsPage() {
         {filteredParts && filteredParts.length > 0 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--glass-border)]">
             <p className="text-sm text-[var(--text-secondary)]">
-              총 {filteredParts.length}개 부품
+              총 {filteredParts.length}개 파츠
             </p>
             <div className="flex gap-2">
               <button className="btn-secondary" disabled>
@@ -380,8 +532,8 @@ export default function PartsPage() {
           setSelectedPart(null);
         }}
         onConfirm={handleDeleteConfirm}
-        title="부품 삭제"
-        message={`"${selectedPart?.partName}" 부품을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+        title="파츠 삭제"
+        message={`"${selectedPart?.partName}" 파츠를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
         confirmText="삭제"
         variant="danger"
         isLoading={deleteMutation.isPending}
@@ -392,8 +544,8 @@ export default function PartsPage() {
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUpload={handleBulkUpload}
-        title="부품 대량 등록"
-        templateName="부품"
+        title="파츠 대량 등록"
+        templateName="파츠"
         fields={partUploadFields}
         isLoading={isUploading}
       />

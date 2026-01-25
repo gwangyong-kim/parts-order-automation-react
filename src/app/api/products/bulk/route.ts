@@ -2,23 +2,6 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 
-// 제품 코드 자동 생성
-async function generateProductCode(): Promise<string> {
-  const prefix = "PRD-";
-
-  const lastProduct = await prisma.product.findFirst({
-    where: { productCode: { startsWith: prefix } },
-    orderBy: { productCode: "desc" },
-  });
-
-  if (lastProduct) {
-    const lastNumber = parseInt(lastProduct.productCode.slice(-3)) || 0;
-    return `${prefix}${String(lastNumber + 1).padStart(3, "0")}`;
-  }
-
-  return `${prefix}001`;
-}
-
 export async function POST(request: Request) {
   try {
     const { data } = await request.json();
@@ -49,18 +32,15 @@ export async function POST(request: Request) {
         const unit = row["단위"] || row["unit"] || "SET";
 
         // 필수 필드 검증
-        if (!productName) {
+        if (!productCode) {
           results.failed++;
-          results.errors.push(`행 ${rowNum}: 제품명은 필수입니다.`);
+          results.errors.push(`행 ${rowNum}: 제품코드는 필수입니다.`);
           continue;
         }
 
-        // 제품 코드 자동 생성 (비어있으면)
-        const finalProductCode = productCode || await generateProductCode();
-
         // 중복 체크 및 업데이트/생성
         const existingProduct = await prisma.product.findUnique({
-          where: { productCode: finalProductCode },
+          where: { productCode },
         });
 
         if (existingProduct) {
@@ -68,7 +48,7 @@ export async function POST(request: Request) {
           await prisma.product.update({
             where: { id: existingProduct.id },
             data: {
-              productName,
+              productName: productName || null,
               description: description || null,
               category: category || null,
               unit: unit || "SET",
@@ -78,8 +58,8 @@ export async function POST(request: Request) {
           // 새로 생성
           await prisma.product.create({
             data: {
-              productCode: finalProductCode,
-              productName,
+              productCode,
+              productName: productName || null,
               description: description || null,
               category: category || null,
               unit: unit || "SET",

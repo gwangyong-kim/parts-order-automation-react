@@ -61,7 +61,7 @@ export default function CategoryDistributionChart({ data }: CategoryDistribution
             borderRadius: "12px",
             backdropFilter: "blur(20px)",
           }}
-          formatter={(value) => [`${value ?? 0}개`, "부품 수"]}
+          formatter={(value) => [`${value ?? 0}개`, "파츠 수"]}
         />
         <Legend
           verticalAlign="bottom"

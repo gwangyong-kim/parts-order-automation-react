@@ -72,7 +72,7 @@ const reports: ReportCard[] = [
   {
     id: "cost-analysis",
     title: "비용 분석 리포트",
-    description: "부품별 구매 비용 및 재고 자산 가치 분석",
+    description: "파츠별 구매 비용 및 재고 자산 가치 분석",
     icon: DollarSign,
     color: "success",
     category: "재무",

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    // 부품 캐시
+    // 파츠 캐시
     const parts = await prisma.part.findMany();
     const partCodeMap = new Map(
       parts
@@ -57,8 +57,8 @@ export async function POST(request: Request) {
 
       try {
         // 필드 매핑
-        const partCode = row["부품코드"] || row["partCode"] || row["부품번호"];
-        const partName = row["부품명"] || row["partName"];
+        const partCode = row["파츠코드"] || row["partCode"] || row["파츠번호"];
+        const partName = row["파츠명"] || row["partName"];
         const typeStr = row["유형"] || row["transactionType"] || row["type"] || row["구분"];
         const quantity = parseInt(row["수량"] || row["quantity"] || "0");
         const referenceType = row["참조유형"] || row["referenceType"] || "";
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         const notes = row["비고"] || row["notes"] || "";
         const performedBy = row["담당자"] || row["performedBy"] || "";
 
-        // 부품 조회
+        // 파츠 조회
         let part = null;
         if (partCode) {
           part = partCodeMap.get(partCode.toLowerCase());
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
         if (!part) {
           results.failed++;
-          results.errors.push(`행 ${rowNum}: 부품을 찾을 수 없습니다. (${partCode || partName})`);
+          results.errors.push(`행 ${rowNum}: 파츠를 찾을 수 없습니다. (${partCode || partName})`);
           continue;
         }
 

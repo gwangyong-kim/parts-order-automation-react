@@ -76,7 +76,7 @@ export default function TransactionForm({
     const newErrors: Record<string, string> = {};
 
     if (!formData.partId || formData.partId === 0) {
-      newErrors.partId = "부품을 선택해주세요.";
+      newErrors.partId = "파츠를 선택해주세요.";
     }
     if (!formData.quantity || formData.quantity <= 0) {
       newErrors.quantity = "수량은 0보다 커야 합니다.";
@@ -122,12 +122,12 @@ export default function TransactionForm({
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           <Select
-            label="부품"
+            label="파츠"
             name="partId"
             value={formData.partId?.toString()}
             onChange={handleChange}
             options={partOptions}
-            placeholder="부품 선택"
+            placeholder="파츠 선택"
             error={errors.partId}
             required
           />

@@ -60,7 +60,7 @@ export default function DashboardCharts() {
         {/* Category Distribution */}
         <div className="glass-card p-6">
           <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
-            카테고리별 부품 현황
+            카테고리별 파츠 현황
           </h2>
           {data.categoryDistribution.length > 0 ? (
             <CategoryDistributionChart data={data.categoryDistribution} />

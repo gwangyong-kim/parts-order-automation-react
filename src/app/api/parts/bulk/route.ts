@@ -2,24 +2,6 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 
-// 부품 코드 자동 생성
-async function generatePartCode(): Promise<string> {
-  const today = new Date();
-  const prefix = `P${today.getFullYear().toString().slice(-2)}${String(today.getMonth() + 1).padStart(2, "0")}`;
-
-  const lastPart = await prisma.part.findFirst({
-    where: { partCode: { startsWith: prefix } },
-    orderBy: { partCode: "desc" },
-  });
-
-  if (lastPart) {
-    const lastNumber = parseInt(lastPart.partCode.slice(-4)) || 0;
-    return `${prefix}${String(lastNumber + 1).padStart(4, "0")}`;
-  }
-
-  return `${prefix}0001`;
-}
-
 export async function POST(request: Request) {
   try {
     const { data } = await request.json();
@@ -58,8 +40,8 @@ export async function POST(request: Request) {
 
       try {
         // 필드 매핑 (다양한 한글/영문 필드명 지원)
-        const partCode = row["부품코드"] || row["partCode"] || row["부품번호"] || row["partNumber"];
-        const partName = row["부품명"] || row["partName"] || row["품명"];
+        const partCode = row["파츠코드"] || row["partCode"] || row["파츠번호"] || row["partNumber"];
+        const partName = row["파츠명"] || row["partName"] || row["품명"];
         const description = row["규격"] || row["description"] || row["사양"] || row["specification"];
         const unit = row["단위"] || row["unit"] || "EA";
         const unitPrice = parseFloat(row["단가"] || row["unitPrice"] || row["가격"] || "0");
@@ -70,9 +52,9 @@ export async function POST(request: Request) {
         const supplierName = row["공급업체"] || row["supplier"] || row["업체"];
 
         // 필수 필드 검증
-        if (!partName) {
+        if (!partCode) {
           results.failed++;
-          results.errors.push(`행 ${rowNum}: 부품명은 필수입니다.`);
+          results.errors.push(`행 ${rowNum}: 파츠코드는 필수입니다.`);
           continue;
         }
 
@@ -80,12 +62,9 @@ export async function POST(request: Request) {
         const categoryId = categoryName ? categoryMap.get(categoryName.toLowerCase()) || null : null;
         const supplierId = supplierName ? supplierMap.get(supplierName.toLowerCase()) || null : null;
 
-        // 부품 코드 자동 생성 (비어있으면)
-        const finalPartCode = partCode || await generatePartCode();
-
         // 중복 체크 및 업데이트/생성
         const existingPart = await prisma.part.findUnique({
-          where: { partCode: finalPartCode },
+          where: { partCode },
         });
 
         if (existingPart) {
@@ -93,7 +72,7 @@ export async function POST(request: Request) {
           await prisma.part.update({
             where: { id: existingPart.id },
             data: {
-              partName,
+              partName: partName || null,
               description: description || null,
               unit,
               unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
@@ -108,8 +87,8 @@ export async function POST(request: Request) {
           // 새로 생성
           const newPart = await prisma.part.create({
             data: {
-              partCode: finalPartCode,
-              partName,
+              partCode,
+              partName: partName || null,
               description: description || null,
               unit,
               unitPrice: isNaN(unitPrice) ? 0 : unitPrice,

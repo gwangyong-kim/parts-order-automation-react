@@ -191,7 +191,7 @@ export default function CategoriesPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">카테고리 관리</h1>
           <p className="text-[var(--text-secondary)]">
-            부품 분류를 위한 카테고리를 관리합니다.
+            파츠 분류를 위한 카테고리를 관리합니다.
           </p>
         </div>
         <button onClick={handleCreate} className="btn btn-primary btn-lg">
@@ -252,7 +252,7 @@ export default function CategoriesPage() {
             placeholder="코드 또는 이름으로 검색..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input pl-10 w-full"
+            className="input input-with-icon w-full"
             autoComplete="off"
           />
         </div>
@@ -267,7 +267,7 @@ export default function CategoriesPage() {
                 <th className="table-header">코드</th>
                 <th className="table-header">이름</th>
                 <th className="table-header">설명</th>
-                <th className="table-header text-center">부품 수</th>
+                <th className="table-header text-center">파츠 수</th>
                 <th className="table-header text-center">작업</th>
               </tr>
             </thead>
@@ -376,7 +376,7 @@ export default function CategoriesPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input w-full"
-                  placeholder="예: 전자부품"
+                  placeholder="예: 전자파츠"
                   required
                 />
               </div>

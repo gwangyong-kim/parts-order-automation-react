@@ -19,19 +19,33 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
 
+interface BomItem {
+  id: number;
+  partId: number;
+  quantityPerUnit: number;
+  lossRate: number;
+  notes: string | null;
+  part?: {
+    id: number;
+    partCode: string;
+    partName: string | null;
+    unit: string;
+  };
+}
+
 interface Product {
   id: number;
   productCode: string;
-  productName: string;
+  productName: string | null;
   description: string | null;
   category: string | null;
   isActive: boolean;
-  bomItems: { id: number }[];
+  bomItems: BomItem[];
 }
 
 const productUploadFields = [
-  { name: "제품코드", description: "고유 제품 코드 (비워두면 자동생성)", required: false, type: "text", example: "PRD-001" },
-  { name: "제품명", description: "제품 이름", required: true, type: "text", example: "스마트 컨트롤러" },
+  { name: "제품코드", description: "고유 제품 코드", required: true, type: "text", example: "PRD-001" },
+  { name: "제품명", description: "제품 이름", required: false, type: "text", example: "스마트 컨트롤러" },
   { name: "설명", description: "제품 설명", required: false, type: "text", example: "산업용 IoT 컨트롤러" },
   { name: "카테고리", description: "제품 분류", required: false, type: "text", example: "완제품" },
   { name: "단위", description: "수량 단위", required: false, type: "text", example: "SET" },
@@ -190,7 +204,7 @@ export default function ProductsPage() {
     const headers = ["제품코드", "제품명", "설명", "카테고리", "BOM항목수", "상태"];
     const rows = products.map(product => [
       product.productCode,
-      product.productName,
+      product.productName || "",
       product.description || "",
       product.category || "",
       product.bomItems.length.toString(),
@@ -214,7 +228,7 @@ export default function ProductsPage() {
   const filteredProducts = products?.filter((product) => {
     const matchesSearch =
       product.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.productName.toLowerCase().includes(searchTerm.toLowerCase());
+      (product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "active" && product.isActive) ||
@@ -274,7 +288,7 @@ export default function ProductsPage() {
               placeholder="제품코드 또는 제품명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
+              className="input input-with-icon w-full"
               autoComplete="off"
             />
           </div>
@@ -393,7 +407,7 @@ export default function ProductsPage() {
                     onClick={() => handleEdit(product)}
                     className="table-action-btn edit"
                     title="수정"
-                    aria-label={`${product.productName} 수정`}
+                    aria-label={`${product.productName || product.productCode} 수정`}
                   >
                     <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
                   </button>
@@ -401,7 +415,7 @@ export default function ProductsPage() {
                     onClick={() => handleDelete(product)}
                     className="table-action-btn delete"
                     title="삭제"
-                    aria-label={`${product.productName} 삭제`}
+                    aria-label={`${product.productName || product.productCode} 삭제`}
                   >
                     <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
                   </button>
@@ -409,11 +423,13 @@ export default function ProductsPage() {
               </div>
 
               <h3 className="font-semibold text-[var(--text-primary)] mb-1">
-                {product.productName}
+                {product.productName || product.productCode}
               </h3>
-              <p className="text-sm text-[var(--text-muted)] mb-3">
-                {product.productCode}
-              </p>
+              {product.productName && (
+                <p className="text-sm text-[var(--text-muted)] mb-3">
+                  {product.productCode}
+                </p>
+              )}
 
               {product.description && (
                 <p className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-2">
@@ -472,7 +488,7 @@ export default function ProductsPage() {
         }}
         onConfirm={handleDeleteConfirm}
         title="제품 삭제"
-        message={`"${selectedProduct?.productName}" 제품을 삭제하시겠습니까?`}
+        message={`"${selectedProduct?.productName || selectedProduct?.productCode}" 제품을 삭제하시겠습니까?`}
         confirmText="삭제"
         variant="danger"
         isLoading={deleteMutation.isPending}

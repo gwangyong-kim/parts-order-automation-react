@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList,
@@ -13,6 +13,7 @@ import {
   Trash2,
   Eye,
   Calendar,
+  ChevronDown,
 } from "lucide-react";
 import SalesOrderForm from "@/components/forms/SalesOrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -102,11 +103,64 @@ export default function SalesOrdersPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ["sales-orders"],
     queryFn: fetchSalesOrders,
   });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleExport = () => {
+    if (!filteredOrders || filteredOrders.length === 0) {
+      toast.error("내보낼 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = ["수주번호", "고객명", "주문일", "납기일", "품목수", "금액", "상태"];
+    const rows = filteredOrders.map((order) => [
+      order.orderNumber,
+      order.customerName,
+      new Date(order.orderDate).toLocaleDateString("ko-KR"),
+      new Date(order.deliveryDate).toLocaleDateString("ko-KR"),
+      order.items.length,
+      order.totalAmount,
+      statusLabels[order.status] || order.status,
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sales_orders_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("파일이 다운로드되었습니다.");
+  };
+
+  const clearFilters = () => {
+    setFilterStatus("all");
+    setShowFilterDropdown(false);
+  };
+
+  const hasActiveFilters = filterStatus !== "all";
 
   const createMutation = useMutation({
     mutationFn: createSalesOrder,
@@ -204,11 +258,13 @@ export default function SalesOrdersPage() {
     }
   };
 
-  const filteredOrders = orders?.filter(
-    (order) =>
+  const filteredOrders = orders?.filter((order) => {
+    const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === "all" || order.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   if (isLoading) {
     return (
@@ -280,23 +336,58 @@ export default function SalesOrdersPage() {
               placeholder="수주번호 또는 고객명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
+              className="input input-with-icon w-full"
               autoComplete="off"
             />
           </div>
           <div className="flex gap-2">
-            <button className="btn-secondary flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              필터
-            </button>
-            <button className="btn-secondary flex items-center gap-2">
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">1</span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
+              </button>
+
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
+                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
+                    {hasActiveFilters && (
+                      <button onClick={clearFilters} className="text-xs text-[var(--primary-500)] hover:underline">
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">상태</label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="all">전체</option>
+                      <option value="PENDING">대기</option>
+                      <option value="CONFIRMED">확정</option>
+                      <option value="IN_PRODUCTION">생산중</option>
+                      <option value="COMPLETED">완료</option>
+                      <option value="CANCELLED">취소</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button onClick={handleExport} className="btn-secondary">
               <Download className="w-4 h-4" />
               내보내기
             </button>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="btn-secondary flex items-center gap-2"
-            >
+            <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
               <Upload className="w-4 h-4" />
               가져오기
             </button>

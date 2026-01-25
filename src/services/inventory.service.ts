@@ -73,14 +73,14 @@ export async function processTransaction(
 ): Promise<TransactionResult> {
   const { partId, transactionType, quantity, reason, notes, referenceType, referenceId, performedBy } = input;
 
-  // 부품 및 재고 조회
+  // 파츠 및 재고 조회
   const part = await prisma.part.findUnique({
     where: { id: partId },
     include: { inventory: true },
   });
 
   if (!part) {
-    throw new Error(`부품을 찾을 수 없습니다. (ID: ${partId})`);
+    throw new Error(`파츠를 찾을 수 없습니다. (ID: ${partId})`);
   }
 
   // 재고 레코드 확인/생성

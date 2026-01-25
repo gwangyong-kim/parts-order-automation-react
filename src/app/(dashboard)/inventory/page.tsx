@@ -5,13 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Warehouse,
   Search,
-  Filter,
   Download,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
   Package,
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface InventoryItem {
   id: number;
@@ -35,6 +35,7 @@ async function fetchInventory(): Promise<InventoryItem[]> {
 }
 
 export default function InventoryPage() {
+  const toast = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
@@ -42,6 +43,41 @@ export default function InventoryPage() {
     queryKey: ["inventory"],
     queryFn: fetchInventory,
   });
+
+  const handleExport = () => {
+    if (!filteredInventory || filteredInventory.length === 0) {
+      toast.error("내보낼 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = ["파츠번호", "파츠명", "단위", "현재고", "예약", "가용재고", "안전재고", "상태", "최종갱신"];
+    const rows = filteredInventory.map((item) => [
+      item.part.partNumber,
+      item.part.partName,
+      item.part.unit,
+      item.currentQty,
+      item.reservedQty,
+      item.availableQty,
+      item.part.safetyStock,
+      item.currentQty <= item.part.safetyStock ? "부족" : "정상",
+      new Date(item.updatedAt).toLocaleDateString("ko-KR"),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `inventory_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("파일이 다운로드되었습니다.");
+  };
 
   const filteredInventory = inventory?.filter((item) => {
     const matchesSearch =
@@ -85,10 +121,10 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">현재고 현황</h1>
           <p className="text-[var(--text-secondary)]">
-            부품별 현재고 및 가용재고를 확인합니다.
+            파츠별 현재고 및 가용재고를 확인합니다.
           </p>
         </div>
-        <button className="btn btn-secondary">
+        <button onClick={handleExport} className="btn btn-secondary">
           <Download className="w-4 h-4" />
           재고현황 다운로드
         </button>
@@ -157,28 +193,24 @@ export default function InventoryPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
             <input
               type="text"
-              placeholder="부품번호 또는 부품명으로 검색..."
+              placeholder="파츠품번 또는 파츠명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
+              className="input input-with-icon w-full"
               autoComplete="off"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                showLowStockOnly
-                  ? "bg-[var(--warning)] text-white"
-                  : "btn-secondary"
-              }`}
+              className={`btn-secondary ${showLowStockOnly ? "ring-2 ring-[var(--warning)] bg-[var(--warning)] text-white" : ""}`}
             >
               <AlertTriangle className="w-4 h-4" />
               저재고만
             </button>
-            <button className="btn-secondary flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              필터
+            <button onClick={handleExport} className="btn-secondary">
+              <Download className="w-4 h-4" />
+              내보내기
             </button>
           </div>
         </div>
@@ -190,8 +222,8 @@ export default function InventoryPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">부품번호</th>
-                <th className="table-header">부품명</th>
+                <th className="table-header">파츠품번</th>
+                <th className="table-header">파츠명</th>
                 <th className="table-header">단위</th>
                 <th className="table-header text-right">현재고</th>
                 <th className="table-header text-right">예약</th>

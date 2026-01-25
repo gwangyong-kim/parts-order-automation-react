@@ -207,7 +207,7 @@ export default function MrpPage() {
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
                 <th className="table-header">긴급도</th>
-                <th className="table-header">부품</th>
+                <th className="table-header">파츠</th>
                 <th className="table-header text-right">총 소요량</th>
                 <th className="table-header text-right">현재고</th>
                 <th className="table-header text-right">입고예정</th>

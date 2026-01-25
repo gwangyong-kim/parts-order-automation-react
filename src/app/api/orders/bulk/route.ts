@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       generatedCodes: [] as string[],
     };
 
-    // 공급업체, 부품 캐시
+    // 공급업체, 파츠 캐시
     const suppliers = await prisma.supplier.findMany();
     const parts = await prisma.part.findMany();
 
@@ -69,8 +69,8 @@ export async function POST(request: Request) {
         const project = row["프로젝트"] || row["project"] || "";
         const orderDateStr = row["발주일"] || row["orderDate"] || row["주문일"];
         const expectedDateStr = row["납기예정일"] || row["expectedDate"] || row["납품예정일"];
-        const partCode = row["부품코드"] || row["partCode"];
-        const partName = row["부품명"] || row["partName"];
+        const partCode = row["파츠코드"] || row["partCode"];
+        const partName = row["파츠명"] || row["partName"];
         const orderQty = parseInt(row["수량"] || row["orderQty"] || row["발주수량"] || "0");
         const unitPrice = parseFloat(row["단가"] || row["unitPrice"] || "0");
         const notes = row["비고"] || row["notes"] || "";
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // 부품 조회
+        // 파츠 조회
         let part = null;
         if (partCode) {
           part = partCodeMap.get(partCode.toLowerCase());

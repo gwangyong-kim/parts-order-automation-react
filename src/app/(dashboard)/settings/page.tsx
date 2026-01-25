@@ -185,7 +185,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 {[
                   { key: "email", label: "이메일 알림", desc: "중요 알림을 이메일로 받습니다." },
-                  { key: "lowStock", label: "저재고 알림", desc: "부품 재고가 안전재고 이하일 때 알림을 받습니다." },
+                  { key: "lowStock", label: "저재고 알림", desc: "파츠 재고가 안전재고 이하일 때 알림을 받습니다." },
                   { key: "orderStatus", label: "발주 상태 알림", desc: "발주 상태 변경 시 알림을 받습니다." },
                   { key: "mrpAlerts", label: "MRP 알림", desc: "MRP 계산 결과에서 긴급 품목 발생 시 알림을 받습니다." },
                 ].map((item) => (

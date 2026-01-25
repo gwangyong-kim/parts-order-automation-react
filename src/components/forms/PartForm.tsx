@@ -109,20 +109,20 @@ export default function PartForm({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? "부품 수정" : "부품 등록"}
+      title={initialData ? "파츠 수정" : "파츠 등록"}
       size="lg"
     >
       <form onSubmit={handleSubmit(onFormSubmit)}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
-            label="부품번호"
+            label="파츠번호"
             {...register("partNumber")}
             error={errors.partNumber?.message}
             required
             placeholder="예: PART-001"
           />
           <Input
-            label="부품명"
+            label="파츠명"
             {...register("partName")}
             error={errors.partName?.message}
             required
@@ -133,7 +133,7 @@ export default function PartForm({
               label="규격"
               {...register("description")}
               error={errors.description?.message}
-              placeholder="부품 규격 및 상세 정보"
+              placeholder="파츠 규격 및 상세 정보"
               rows={2}
             />
           </div>

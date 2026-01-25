@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Truck,
@@ -12,6 +12,7 @@ import {
   Trash2,
   Phone,
   Mail,
+  ChevronDown,
 } from "lucide-react";
 import SupplierForm from "@/components/forms/SupplierForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -58,11 +59,64 @@ export default function SuppliersPage() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const { data: suppliers, isLoading, error } = useQuery({
     queryKey: ["suppliers"],
     queryFn: fetchSuppliers,
   });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleExport = () => {
+    if (!filteredSuppliers || filteredSuppliers.length === 0) {
+      toast.error("내보낼 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = ["업체코드", "업체명", "담당자", "연락처", "이메일", "주소", "상태"];
+    const rows = filteredSuppliers.map((supplier) => [
+      supplier.code,
+      supplier.name,
+      supplier.contactPerson || "",
+      supplier.phone || "",
+      supplier.email || "",
+      supplier.address || "",
+      supplier.isActive ? "활성" : "비활성",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `suppliers_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("파일이 다운로드되었습니다.");
+  };
+
+  const clearFilters = () => {
+    setFilterStatus("all");
+    setShowFilterDropdown(false);
+  };
+
+  const hasActiveFilters = filterStatus !== "all";
 
   const createMutation = useMutation({
     mutationFn: createSupplier,
@@ -132,11 +186,16 @@ export default function SuppliersPage() {
     }
   };
 
-  const filteredSuppliers = suppliers?.filter(
-    (supplier) =>
+  const filteredSuppliers = suppliers?.filter((supplier) => {
+    const matchesSearch =
       supplier.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      filterStatus === "all" ||
+      (filterStatus === "active" && supplier.isActive) ||
+      (filterStatus === "inactive" && !supplier.isActive);
+    return matchesSearch && matchesStatus;
+  });
 
   if (isLoading) {
     return (
@@ -180,16 +239,51 @@ export default function SuppliersPage() {
               placeholder="업체코드 또는 업체명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
+              className="input input-with-icon w-full"
               autoComplete="off"
             />
           </div>
           <div className="flex gap-2">
-            <button className="btn-secondary flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              필터
-            </button>
-            <button className="btn-secondary flex items-center gap-2">
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">1</span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
+              </button>
+
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
+                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
+                    {hasActiveFilters && (
+                      <button onClick={clearFilters} className="text-xs text-[var(--primary-500)] hover:underline">
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">상태</label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value as "all" | "active" | "inactive")}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="all">전체</option>
+                      <option value="active">활성</option>
+                      <option value="inactive">비활성</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button onClick={handleExport} className="btn-secondary">
               <Download className="w-4 h-4" />
               내보내기
             </button>

@@ -142,12 +142,12 @@ async function main() {
     prisma.category.upsert({
       where: { code: "ELEC" },
       update: {},
-      create: { code: "ELEC", name: "전자부품", description: "전자/전기 부품" },
+      create: { code: "ELEC", name: "전자파츠", description: "전자/전기 파츠" },
     }),
     prisma.category.upsert({
       where: { code: "MECH" },
       update: {},
-      create: { code: "MECH", name: "기계부품", description: "기계/금속 부품" },
+      create: { code: "MECH", name: "기계파츠", description: "기계/금속 파츠" },
     }),
     prisma.category.upsert({
       where: { code: "CONS" },
@@ -164,7 +164,7 @@ async function main() {
       update: {},
       create: {
         code: "SUP001",
-        name: "삼성전자부품",
+        name: "삼성전자파츠",
         contactPerson: "김영호",
         phone: "02-1234-5678",
         email: "contact@samsung-parts.co.kr",

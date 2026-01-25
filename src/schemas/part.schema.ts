@@ -1,21 +1,22 @@
 /**
  * Part Schema
  *
- * 부품 관련 Zod 검증 스키마
+ * 파츠 관련 Zod 검증 스키마
  */
 
 import { z } from "zod";
 
-// 부품 생성/수정 스키마
+// 파츠 생성/수정 스키마
 export const partSchema = z.object({
   partNumber: z
     .string()
-    .min(1, "부품번호를 입력해주세요.")
-    .max(50, "부품번호는 50자 이내로 입력해주세요."),
+    .min(1, "파츠번호를 입력해주세요.")
+    .max(50, "파츠번호는 50자 이내로 입력해주세요."),
   partName: z
     .string()
-    .min(1, "부품명을 입력해주세요.")
-    .max(100, "부품명은 100자 이내로 입력해주세요."),
+    .max(100, "파츠명은 100자 이내로 입력해주세요.")
+    .nullable()
+    .optional(),
   description: z.string().max(500).nullable().optional(),
   categoryId: z.number().int().positive().nullable().optional(),
   supplierId: z.number().int().positive().nullable().optional(),
@@ -26,15 +27,15 @@ export const partSchema = z.object({
   leadTime: z.number().int().min(0, "리드타임은 0 이상이어야 합니다."),
 });
 
-// 부품 수정 스키마 (모든 필드 optional)
+// 파츠 수정 스키마 (모든 필드 optional)
 export const partUpdateSchema = partSchema.partial().extend({
   isActive: z.boolean().optional(),
 });
 
 // API 요청용 스키마 (DB 필드명 매핑)
 export const partApiSchema = z.object({
-  partCode: z.string().min(1, "부품번호를 입력해주세요."),
-  partName: z.string().min(1, "부품명을 입력해주세요."),
+  partCode: z.string().min(1, "파츠코드를 입력해주세요."),
+  partName: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   categoryId: z.number().int().positive().nullable().optional(),
   supplierId: z.number().int().positive().nullable().optional(),

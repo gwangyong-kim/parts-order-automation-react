@@ -71,7 +71,7 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="총 부품 수"
+          title="총 파츠 수"
           value={stats.partsCount}
           icon={Package}
           trend={{ value: 12, isPositive: true }}

@@ -81,14 +81,14 @@ export async function DELETE(request: Request, { params }: Params) {
     const { id } = await params;
     const categoryId = parseInt(id);
 
-    // 해당 카테고리를 사용 중인 활성 부품 확인
+    // 해당 카테고리를 사용 중인 활성 파츠 확인
     const partsCount = await prisma.part.count({
       where: { categoryId, isActive: true },
     });
 
     if (partsCount > 0) {
       return NextResponse.json(
-        { error: `이 카테고리를 사용 중인 부품이 ${partsCount}개 있습니다. 먼저 부품의 카테고리를 변경해주세요.` },
+        { error: `이 카테고리를 사용 중인 파츠가 ${partsCount}개 있습니다. 먼저 파츠의 카테고리를 변경해주세요.` },
         { status: 400 }
       );
     }
