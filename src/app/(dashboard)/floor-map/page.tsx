@@ -20,9 +20,15 @@ import {
   CheckSquare,
   Square,
   ExternalLink,
+  ArrowLeft,
 } from "lucide-react";
 import WarehouseMap from "@/components/warehouse/WarehouseMap";
-import type { WarehouseLayout, LocationLookup, PickingTask, PickingItem } from "@/types/warehouse";
+import type { WarehouseLayout, LocationLookup, PickingTask, PickingItem, PickingLocationInfo } from "@/types/warehouse";
+
+interface ActivePickingData {
+  tasks: PickingTask[];
+  locationSummary: Record<string, PickingLocationInfo>;
+}
 
 async function fetchWarehouseLayout(warehouseId: number): Promise<WarehouseLayout> {
   const res = await fetch(`/api/warehouse/${warehouseId}/layout`);
@@ -48,6 +54,12 @@ async function lookupLocation(code: string): Promise<LocationLookup> {
 async function fetchPickingTasks(): Promise<PickingTask[]> {
   const res = await fetch("/api/picking-tasks?status=PENDING&status=IN_PROGRESS");
   if (!res.ok) throw new Error("Failed to fetch picking tasks");
+  return res.json();
+}
+
+async function fetchActivePickingData(): Promise<ActivePickingData> {
+  const res = await fetch("/api/picking-tasks/active");
+  if (!res.ok) throw new Error("Failed to fetch active picking data");
   return res.json();
 }
 
@@ -101,6 +113,10 @@ export default function FloorMapPage() {
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [flagData, setFlagData] = useState<FlagIssueData>({ type: "stock_mismatch", notes: "" });
 
+  // 피킹 위치 선택 상태
+  const [selectedPickingLocation, setSelectedPickingLocation] = useState<string | null>(null);
+  const [selectedPickingInfo, setSelectedPickingInfo] = useState<PickingLocationInfo | null>(null);
+
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ["warehouses"],
     queryFn: fetchWarehouses,
@@ -118,6 +134,13 @@ export default function FloorMapPage() {
     queryKey: ["picking-tasks-active"],
     queryFn: fetchPickingTasks,
     refetchInterval: 10000,
+  });
+
+  // 피킹 위치 시각화를 위한 데이터 조회
+  const { data: activePickingData } = useQuery({
+    queryKey: ["active-picking-data"],
+    queryFn: fetchActivePickingData,
+    refetchInterval: 5000,
   });
 
   const pickItemMutation = useMutation({
@@ -188,6 +211,17 @@ export default function FloorMapPage() {
     setHighlightLocation(undefined);
     setLocationInfo(null);
     setSearchError(null);
+    setSelectedPickingLocation(null);
+    setSelectedPickingInfo(null);
+  };
+
+  // 피킹 위치 클릭 핸들러
+  const handlePickingLocationClick = (locationCode: string, pickingInfo: PickingLocationInfo) => {
+    setSelectedPickingLocation(locationCode);
+    setSelectedPickingInfo(pickingInfo);
+    setHighlightLocation(locationCode);
+    // 기존 위치 정보 초기화
+    setLocationInfo(null);
   };
 
   const handleStartTask = (task: PickingTask) => {
@@ -387,62 +421,8 @@ export default function FloorMapPage() {
 
       {/* Main Content */}
       <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
-        {/* Left: Picking Tasks Panel */}
-        <div className="col-span-2 glass-card p-3 flex flex-col min-h-0 overflow-hidden">
-          <h2 className="text-xs font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2 flex-shrink-0">
-            <ClipboardList className="w-4 h-4" />
-            피킹 작업
-          </h2>
-
-          {pendingTasks.length > 0 ? (
-            <div className="space-y-1.5 overflow-y-auto flex-1">
-              {pendingTasks.map((task) => (
-                <button
-                  key={task.id}
-                  onClick={() => handleStartTask(task)}
-                  className={`w-full p-2 rounded-lg text-left transition-all ${
-                    activeTask?.id === task.id
-                      ? "bg-[var(--primary)] text-white"
-                      : "bg-white hover:bg-[var(--gray-100)] border border-[var(--gray-200)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[10px] font-mono">{task.taskCode}</span>
-                    <span
-                      className={`text-[10px] px-1 py-0.5 rounded ${
-                        task.status === "IN_PROGRESS"
-                          ? activeTask?.id === task.id
-                            ? "bg-white/20 text-white"
-                            : "bg-[var(--info-100)] text-[var(--info-600)]"
-                          : activeTask?.id === task.id
-                            ? "bg-white/20 text-white"
-                            : "bg-[var(--gray-100)] text-[var(--text-muted)]"
-                      }`}
-                    >
-                      {task.status === "IN_PROGRESS" ? "진행" : "대기"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] ${activeTask?.id === task.id ? "text-white/80" : "text-[var(--text-muted)]"}`}>
-                      {task.pickedItems}/{task.totalItems}
-                    </span>
-                    <ChevronRight className="w-3 h-3 opacity-50" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-center text-[var(--text-muted)]">
-              <div>
-                <ClipboardList className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                <p className="text-[10px]">대기 작업 없음</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Center: Map */}
-        <div className="col-span-7 glass-card p-2 flex flex-col min-h-0">
+        {/* Left: Map (expanded) */}
+        <div className="col-span-9 glass-card p-2 flex flex-col min-h-0">
           {layoutLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
@@ -455,6 +435,9 @@ export default function FloorMapPage() {
               showPartCounts
               className="flex-1"
               fullHeight
+              pickingMode={!!activePickingData?.locationSummary && Object.keys(activePickingData.locationSummary).length > 0}
+              activePickingLocations={activePickingData?.locationSummary}
+              onPickingLocationClick={handlePickingLocationClick}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
@@ -469,9 +452,25 @@ export default function FloorMapPage() {
             <div className="flex flex-col h-full">
               {/* Active Task Header */}
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                <span className="px-2 py-0.5 bg-[var(--primary)] text-white text-[10px] font-medium rounded">
-                  ACTIVE TASK
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setActiveTask(null);
+                      setCurrentItemIndex(0);
+                      setWorkflowStep("navigate");
+                      setIsScanned(false);
+                      setIsVerified(false);
+                      setHighlightLocation(undefined);
+                    }}
+                    className="p-1 hover:bg-[var(--gray-100)] rounded transition-colors"
+                    title="작업 목록으로 돌아가기"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-[var(--text-muted)]" />
+                  </button>
+                  <span className="px-2 py-0.5 bg-[var(--primary)] text-white text-[10px] font-medium rounded">
+                    ACTIVE TASK
+                  </span>
+                </div>
                 <span className="text-xs text-[var(--text-muted)]">
                   {currentItemIndex + 1}/{activeTask.items?.length || 0} Items
                 </span>
@@ -640,6 +639,114 @@ export default function FloorMapPage() {
                 )}
               </button>
             </div>
+          ) : selectedPickingLocation && selectedPickingInfo ? (
+            // 피킹 위치 정보 모드
+            <>
+              <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedPickingLocation(null);
+                      setSelectedPickingInfo(null);
+                      setHighlightLocation(undefined);
+                    }}
+                    className="p-1 hover:bg-[var(--gray-100)] rounded transition-colors"
+                    title="목록으로 돌아가기"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-[var(--text-muted)]" />
+                  </button>
+                  <h2 className="text-xs font-semibold text-[var(--text-primary)]">피킹 정보</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedPickingLocation(null);
+                    setSelectedPickingInfo(null);
+                    setHighlightLocation(undefined);
+                  }}
+                  className="p-1 hover:bg-[var(--gray-100)] rounded"
+                >
+                  <X className="w-4 h-4 text-[var(--text-muted)]" />
+                </button>
+              </div>
+
+              <div className="space-y-3 overflow-y-auto flex-1">
+                {/* 위치 코드 */}
+                <div className="p-3 bg-[var(--primary)]/10 rounded-lg">
+                  <p className="text-[10px] text-[var(--text-muted)]">위치 코드</p>
+                  <p className="text-xl font-bold text-[var(--primary)]">{selectedPickingLocation}</p>
+                </div>
+
+                {/* 작업 정보 */}
+                <div className="p-2 bg-[var(--info-50)] rounded-lg">
+                  <p className="text-[10px] text-[var(--text-muted)]">피킹 작업</p>
+                  <p className="text-sm font-medium">{selectedPickingInfo.taskCode}</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    selectedPickingInfo.status === "completed"
+                      ? "bg-[var(--success-100)] text-[var(--success-600)]"
+                      : selectedPickingInfo.status === "in_progress"
+                      ? "bg-[var(--info-100)] text-[var(--info-600)]"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}>
+                    {selectedPickingInfo.status === "completed" ? "완료" :
+                     selectedPickingInfo.status === "in_progress" ? "진행중" : "대기"}
+                  </span>
+                </div>
+
+                {/* 진행률 */}
+                <div>
+                  <div className="flex justify-between text-[10px] mb-1">
+                    <span className="text-[var(--text-muted)]">피킹 진행률</span>
+                    <span className="font-medium">{selectedPickingInfo.totalPicked}/{selectedPickingInfo.totalRequired}</span>
+                  </div>
+                  <div className="h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--primary)] transition-all"
+                      style={{ width: `${(selectedPickingInfo.totalPicked / selectedPickingInfo.totalRequired) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* 피킹 아이템 목록 */}
+                <div className="pt-3 border-t border-[var(--glass-border)]">
+                  <p className="text-[10px] font-medium text-[var(--text-secondary)] mb-2">피킹 아이템</p>
+                  <div className="space-y-1.5">
+                    {selectedPickingInfo.items.map((item) => (
+                      <div key={item.id} className="p-2 bg-white rounded-lg border border-[var(--gray-200)]">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium text-xs">{item.partCode}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">{item.partName}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-sm">{item.pickedQty}/{item.requiredQty}</p>
+                            <p className="text-[10px] text-[var(--text-muted)]">{item.unit}</p>
+                          </div>
+                        </div>
+                        <span className={`text-[8px] px-1 py-0.5 rounded mt-1 inline-block ${
+                          item.status === "PICKED" ? "bg-[var(--success-100)] text-[var(--success-600)]" :
+                          item.status === "IN_PROGRESS" ? "bg-[var(--info-100)] text-[var(--info-600)]" :
+                          item.status === "SKIPPED" ? "bg-[var(--gray-100)] text-[var(--text-muted)]" :
+                          "bg-yellow-100 text-yellow-700"
+                        }`}>
+                          {item.status === "PICKED" ? "피킹완료" :
+                           item.status === "IN_PROGRESS" ? "진행중" :
+                           item.status === "SKIPPED" ? "건너뜀" : "대기"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 피킹 작업 이동 버튼 */}
+                <a
+                  href={`/picking/${selectedPickingInfo.taskId}`}
+                  className="btn btn-primary w-full text-sm py-2 flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  피킹 작업으로 이동
+                </a>
+              </div>
+            </>
           ) : (
             // Location Info Mode
             <>
@@ -695,20 +802,65 @@ export default function FloorMapPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center text-center text-[var(--text-muted)]">
-                  <div>
-                    <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">위치를 검색하거나</p>
-                    <p className="text-xs">맵에서 클릭하세요</p>
-                    {pendingTasks.length > 0 && (
-                      <div className="mt-3 p-2 bg-[var(--info-50)] rounded-lg">
-                        <AlertCircle className="w-4 h-4 mx-auto mb-1 text-[var(--info-500)]" />
-                        <p className="text-[10px] text-[var(--info-600)]">
-                          피킹 작업 {pendingTasks.length}개 대기
-                        </p>
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* 피킹 작업 목록 */}
+                  {pendingTasks.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                        <h3 className="text-[10px] font-semibold text-[var(--text-secondary)] flex items-center gap-1">
+                          <ClipboardList className="w-3 h-3" />
+                          피킹 작업
+                        </h3>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-[var(--info-100)] text-[var(--info-600)] rounded">
+                          {pendingTasks.length}개
+                        </span>
                       </div>
-                    )}
-                  </div>
+                      <div className="space-y-1.5 overflow-y-auto flex-1">
+                        {pendingTasks.map((task) => (
+                          <button
+                            key={task.id}
+                            onClick={() => handleStartTask(task)}
+                            className={`w-full p-2 rounded-lg text-left transition-all ${
+                              activeTask?.id === task.id
+                                ? "bg-[var(--primary)] text-white"
+                                : "bg-white hover:bg-[var(--gray-100)] border border-[var(--gray-200)]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[10px] font-mono">{task.taskCode}</span>
+                              <span
+                                className={`text-[10px] px-1 py-0.5 rounded ${
+                                  task.status === "IN_PROGRESS"
+                                    ? activeTask?.id === task.id
+                                      ? "bg-white/20 text-white"
+                                      : "bg-[var(--info-100)] text-[var(--info-600)]"
+                                    : activeTask?.id === task.id
+                                      ? "bg-white/20 text-white"
+                                      : "bg-[var(--gray-100)] text-[var(--text-muted)]"
+                                }`}
+                              >
+                                {task.status === "IN_PROGRESS" ? "진행" : "대기"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] ${activeTask?.id === task.id ? "text-white/80" : "text-[var(--text-muted)]"}`}>
+                                {task.pickedItems}/{task.totalItems} 항목
+                              </span>
+                              <ChevronRight className="w-3 h-3 opacity-50" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-center text-[var(--text-muted)]">
+                      <div>
+                        <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs">위치를 검색하거나</p>
+                        <p className="text-xs">맵에서 클릭하세요</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

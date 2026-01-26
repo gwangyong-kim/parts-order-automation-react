@@ -12,8 +12,10 @@ import {
   AlertTriangle,
   Filter,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import type { PickingTask, PickingTaskStatus, PickingTaskPriority } from "@/types/warehouse";
 
 async function fetchPickingTasks(): Promise<PickingTask[]> {
@@ -30,6 +32,13 @@ async function updateTaskStatus(id: number, status: string): Promise<PickingTask
   });
   if (!res.ok) throw new Error("Failed to update task");
   return res.json();
+}
+
+async function deletePickingTask(id: number): Promise<void> {
+  const res = await fetch(`/api/picking-tasks/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete task");
 }
 
 const statusConfig: Record<PickingTaskStatus, { label: string; color: string; icon: React.ElementType }> = {
@@ -50,6 +59,7 @@ export default function PickingPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PickingTaskStatus | "all">("all");
+  const [deleteTarget, setDeleteTarget] = useState<PickingTask | null>(null);
 
   const { data: tasks, isLoading, error } = useQuery({
     queryKey: ["picking-tasks"],
@@ -63,6 +73,17 @@ export default function PickingPage() {
       toast.success("피킹 작업이 시작되었습니다.");
     },
     onError: () => toast.error("작업 시작에 실패했습니다."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deletePickingTask(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["active-picking-data"] });
+      toast.success("피킹 작업이 삭제되었습니다.");
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error("작업 삭제에 실패했습니다."),
   });
 
   const filteredTasks = tasks?.filter(
@@ -288,32 +309,44 @@ export default function PickingPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {task.status === "PENDING" && (
-                          <button
-                            onClick={() => startMutation.mutate(task.id)}
-                            className="btn btn-primary btn-sm"
-                            disabled={startMutation.isPending}
-                          >
-                            <Play className="w-4 h-4" />
-                            시작
-                          </button>
-                        )}
-                        {task.status === "IN_PROGRESS" && (
-                          <Link
-                            href={`/picking/${task.id}`}
-                            className="btn btn-primary btn-sm"
-                          >
-                            계속
-                          </Link>
-                        )}
-                        {task.status === "COMPLETED" && (
-                          <Link
-                            href={`/picking/${task.id}`}
-                            className="btn-secondary btn-sm"
-                          >
-                            상세
-                          </Link>
-                        )}
+                        <div className="flex items-center justify-center gap-2">
+                          {task.status === "PENDING" && (
+                            <button
+                              onClick={() => startMutation.mutate(task.id)}
+                              className="btn btn-primary btn-sm"
+                              disabled={startMutation.isPending}
+                            >
+                              <Play className="w-4 h-4" />
+                              시작
+                            </button>
+                          )}
+                          {task.status === "IN_PROGRESS" && (
+                            <Link
+                              href={`/picking/${task.id}`}
+                              className="btn btn-primary btn-sm"
+                            >
+                              계속
+                            </Link>
+                          )}
+                          {task.status === "COMPLETED" && (
+                            <Link
+                              href={`/picking/${task.id}`}
+                              className="btn-secondary btn-sm"
+                            >
+                              상세
+                            </Link>
+                          )}
+                          {/* 삭제 버튼 - 완료되지 않은 작업만 */}
+                          {task.status !== "COMPLETED" && (
+                            <button
+                              onClick={() => setDeleteTarget(task)}
+                              className="p-2 text-[var(--danger)] hover:bg-[var(--danger)]/10 rounded-lg transition-colors"
+                              title="작업 삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -323,6 +356,18 @@ export default function PickingPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="피킹 작업 삭제"
+        message={`피킹 작업 "${deleteTarget?.taskCode}"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+        confirmText="삭제"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }

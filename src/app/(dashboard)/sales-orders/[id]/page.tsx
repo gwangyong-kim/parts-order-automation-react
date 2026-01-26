@@ -1,7 +1,7 @@
 "use client";
 
-import { use } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { use, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,7 +20,12 @@ import {
   Truck,
   Layers,
   AlertTriangle,
+  ClipboardCheck,
+  Play,
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import SalesOrderForm from "@/components/forms/SalesOrderForm";
+import type { PickingTask } from "@/types/warehouse";
 
 interface SalesOrderItem {
   id: number;
@@ -72,6 +77,54 @@ async function fetchSalesOrder(id: string): Promise<SalesOrder> {
   return res.json();
 }
 
+async function fetchPickingTaskForOrder(salesOrderId: string): Promise<PickingTask | null> {
+  const res = await fetch(`/api/picking-tasks?salesOrderId=${salesOrderId}`);
+  if (!res.ok) return null;
+  const tasks: PickingTask[] = await res.json();
+  return tasks.find(t => t.salesOrderId === parseInt(salesOrderId)) || null;
+}
+
+async function createPickingTask(salesOrderId: number): Promise<PickingTask> {
+  const res = await fetch(`/api/picking-tasks/from-sales-order/${salesOrderId}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to create picking task");
+  }
+  return res.json();
+}
+
+interface FormSalesOrder {
+  id?: number;
+  orderNumber: string;
+  division: string;
+  manager: string;
+  project: string;
+  orderDate: string;
+  deliveryDate: string;
+  status: string;
+  notes: string | null;
+  items?: {
+    id?: number;
+    productId: number;
+    productCode?: string;
+    productName?: string;
+    orderQty: number;
+    notes: string | null;
+  }[];
+}
+
+async function updateSalesOrder(id: number, data: Partial<FormSalesOrder>): Promise<SalesOrder> {
+  const res = await fetch(`/api/sales-orders/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update sales order");
+  return res.json();
+}
+
 const statusColors: Record<string, string> = {
   PENDING: "badge-warning",
   CONFIRMED: "badge-info",
@@ -103,6 +156,9 @@ export default function SalesOrderDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const {
     data: order,
@@ -112,6 +168,63 @@ export default function SalesOrderDetailPage({
     queryKey: ["sales-order", id],
     queryFn: () => fetchSalesOrder(id),
   });
+
+  const { data: pickingTask } = useQuery({
+    queryKey: ["picking-task-for-order", id],
+    queryFn: () => fetchPickingTaskForOrder(id),
+    enabled: !!order,
+  });
+
+  const createPickingMutation = useMutation({
+    mutationFn: () => createPickingTask(parseInt(id)),
+    onSuccess: (task) => {
+      queryClient.invalidateQueries({ queryKey: ["picking-task-for-order", id] });
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      toast.success(`피킹 작업 ${task.taskCode}이(가) 생성되었습니다.`);
+      router.push(`/picking/${task.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "피킹 작업 생성에 실패했습니다.");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Partial<FormSalesOrder>) => updateSalesOrder(parseInt(id), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-order", id] });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      toast.success("수주가 수정되었습니다.");
+      setShowEditModal(false);
+    },
+    onError: () => {
+      toast.error("수주 수정에 실패했습니다.");
+    },
+  });
+
+  const handleEditSubmit = (data: Partial<FormSalesOrder>) => {
+    updateMutation.mutate(data);
+  };
+
+  // Convert order to form format
+  const orderForForm = order ? {
+    id: order.id,
+    orderNumber: order.orderCode,
+    division: order.division || "",
+    manager: order.manager || "",
+    project: order.project || "",
+    orderDate: order.orderDate,
+    deliveryDate: order.dueDate || "",
+    status: order.status,
+    notes: order.notes,
+    items: order.items.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      productCode: item.product.productCode,
+      productName: item.product.productName,
+      orderQty: item.orderQty,
+      notes: item.notes,
+    })),
+  } : null;
 
   if (isLoading) {
     return (
@@ -179,13 +292,42 @@ export default function SalesOrderDetailPage({
             </p>
           </div>
         </div>
-        <Link
-          href={`/sales-orders?edit=${id}`}
-          className="btn btn-primary"
-        >
-          <Edit2 className="w-4 h-4" />
-          편집
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Picking Button */}
+          {order.items.length > 0 && order.status !== "CANCELLED" && order.status !== "COMPLETED" && (
+            pickingTask ? (
+              <Link
+                href={`/picking/${pickingTask.id}`}
+                className={`btn ${pickingTask.status === "COMPLETED" ? "btn-secondary" : "btn-primary"}`}
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                {pickingTask.status === "PENDING" ? "피킹 시작" :
+                 pickingTask.status === "IN_PROGRESS" ? "피킹 진행중" :
+                 pickingTask.status === "COMPLETED" ? "피킹 완료" : "피킹 보기"}
+              </Link>
+            ) : (
+              <button
+                onClick={() => createPickingMutation.mutate()}
+                disabled={createPickingMutation.isPending}
+                className="btn btn-primary"
+              >
+                {createPickingMutation.isPending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                피킹 생성
+              </button>
+            )
+          )}
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="btn btn-secondary"
+          >
+            <Edit2 className="w-4 h-4" />
+            편집
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -368,6 +510,9 @@ export default function SalesOrderDetailPage({
                     <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
                       수주량
                     </th>
+                    <th className="text-left px-1 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      단위
+                    </th>
                     <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
                       생산량
                     </th>
@@ -400,9 +545,9 @@ export default function SalesOrderDetailPage({
                         </td>
                         <td className="px-3 py-3 text-right tabular-nums">
                           {item.orderQty.toLocaleString()}
-                          <span className="text-[var(--text-muted)] ml-1">
-                            {item.product.unit}
-                          </span>
+                        </td>
+                        <td className="px-1 py-3 text-left text-xs text-[var(--text-muted)]">
+                          {item.product.unit}
                         </td>
                         <td className="px-3 py-3 text-right tabular-nums">
                           <span className={item.producedQty >= item.orderQty ? "text-[var(--success)]" : "text-[var(--text-primary)]"}>
@@ -437,6 +582,7 @@ export default function SalesOrderDetailPage({
                     <td className="px-3 py-3 text-right font-bold tabular-nums">
                       {totalOrderQty.toLocaleString()}
                     </td>
+                    <td></td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums text-[var(--primary)]">
                       {totalProducedQty.toLocaleString()}
                     </td>
@@ -488,6 +634,9 @@ export default function SalesOrderDetailPage({
                   <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
                     소요량
                   </th>
+                  <th className="text-left px-1 py-2 text-sm font-medium text-[var(--text-muted)]">
+                    단위
+                  </th>
                   <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
                     현재고
                   </th>
@@ -530,9 +679,9 @@ export default function SalesOrderDetailPage({
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums font-medium">
                         {mat.totalRequirement.toLocaleString()}
-                        <span className="text-[var(--text-muted)] ml-1 font-normal">
-                          {mat.unit}
-                        </span>
+                      </td>
+                      <td className="px-1 py-3 text-left text-xs text-[var(--text-muted)]">
+                        {mat.unit}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">
                         {mat.currentStock.toLocaleString()}
@@ -579,6 +728,7 @@ export default function SalesOrderDetailPage({
                   <td className="px-3 py-3 text-right font-bold tabular-nums">
                     {order.materialRequirements.reduce((sum, m) => sum + m.totalRequirement, 0).toLocaleString()}
                   </td>
+                  <td></td>
                   <td className="px-3 py-3 text-right tabular-nums">
                     {order.materialRequirements.reduce((sum, m) => sum + m.currentStock, 0).toLocaleString()}
                   </td>
@@ -611,6 +761,15 @@ export default function SalesOrderDetailPage({
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <SalesOrderForm
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSubmit={handleEditSubmit}
+        initialData={orderForForm}
+        isLoading={updateMutation.isPending}
+      />
     </div>
   );
 }

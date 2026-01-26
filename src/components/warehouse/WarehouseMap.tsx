@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo } from "react";
 import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import type { WarehouseLayout } from "@/types/warehouse";
+import type { WarehouseLayout, PickingLocationInfo } from "@/types/warehouse";
 import ZoneGrid from "./ZoneGrid";
 
 interface WarehouseMapProps {
@@ -12,6 +12,10 @@ interface WarehouseMapProps {
   showPartCounts?: boolean;
   className?: string;
   fullHeight?: boolean;
+  // Phase 2: 피킹 모드 props
+  pickingMode?: boolean;
+  activePickingLocations?: Record<string, PickingLocationInfo>;
+  onPickingLocationClick?: (locationCode: string, pickingInfo: PickingLocationInfo) => void;
 }
 
 export default function WarehouseMap({
@@ -21,6 +25,9 @@ export default function WarehouseMap({
   showPartCounts = true,
   className = "",
   fullHeight = false,
+  pickingMode = false,
+  activePickingLocations,
+  onPickingLocationClick,
 }: WarehouseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -95,6 +102,15 @@ export default function WarehouseMap({
   // Parse highlight location to get zone code
   const highlightZone = highlightLocation?.split("-")[0];
 
+  // Phase 2: 피킹 모드 핸들러
+  const handleLocationClick = (locationCode: string) => {
+    if (pickingMode && activePickingLocations && activePickingLocations[locationCode]) {
+      onPickingLocationClick?.(locationCode, activePickingLocations[locationCode]);
+    } else {
+      onLocationClick?.(locationCode);
+    }
+  };
+
   return (
     <div className={`relative bg-[var(--glass-bg)] rounded-xl overflow-hidden ${className}`}>
       {/* Controls */}
@@ -131,6 +147,23 @@ export default function WarehouseMap({
               <div className="w-3 h-3 rounded bg-[var(--primary)] animate-pulse" />
               <span className="text-xs">현재 위치</span>
             </div>
+          )}
+          {/* Phase 2: 피킹 모드 범례 */}
+          {pickingMode && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-yellow-400" />
+                <span className="text-xs">피킹 대기</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-blue-500 animate-pulse" />
+                <span className="text-xs">피킹 진행중</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-green-500" />
+                <span className="text-xs">피킹 완료</span>
+              </div>
+            </>
           )}
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-[var(--gray-200)]" />
@@ -200,8 +233,10 @@ export default function WarehouseMap({
               offsetY={padding}
               highlightLocation={highlightLocation}
               isHighlighted={highlightZone === zone.code}
-              onLocationClick={onLocationClick}
+              onLocationClick={handleLocationClick}
               showPartCounts={showPartCounts}
+              pickingMode={pickingMode}
+              activePickingLocations={activePickingLocations}
             />
           ))}
 

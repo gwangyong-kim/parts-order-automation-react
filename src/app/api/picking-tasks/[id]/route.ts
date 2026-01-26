@@ -69,6 +69,12 @@ export async function PUT(request: Request, { params }: Params) {
       updateData.completedAt = new Date();
     }
 
+    // Handle task revert action (COMPLETED -> IN_PROGRESS)
+    if (body.action === "revert") {
+      updateData.status = "IN_PROGRESS";
+      updateData.completedAt = null;
+    }
+
     const task = await prisma.pickingTask.update({
       where: { id: parseInt(id) },
       data: updateData,

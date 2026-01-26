@@ -9,9 +9,8 @@ out
 dist
 build
 
-# Database files (exclude journal files and prisma/dev.db, keep root dev.db for Docker build)
+# Database files (exclude journal files only, keep prisma/dev.db for Docker build)
 *.db-journal
-prisma/dev.db
 
 # Environment files (use docker-compose environment instead)
 .env

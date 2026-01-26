@@ -4,11 +4,15 @@ import prisma from "@/lib/prisma";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
+    const statusList = searchParams.getAll("status"); // 여러 status 지원
     const assignedTo = searchParams.get("assignedTo");
 
     const where: Record<string, unknown> = {};
-    if (status) where.status = status;
+    if (statusList.length === 1) {
+      where.status = statusList[0];
+    } else if (statusList.length > 1) {
+      where.status = { in: statusList };
+    }
     if (assignedTo) where.assignedTo = assignedTo;
 
     const tasks = await prisma.pickingTask.findMany({

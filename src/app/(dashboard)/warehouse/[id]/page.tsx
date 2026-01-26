@@ -13,8 +13,10 @@ import {
   Edit2,
   Eye,
   Settings2,
+  ClipboardCheck,
 } from "lucide-react";
 import WarehouseMap from "@/components/warehouse/WarehouseMap";
+import PickingInfoPanel from "@/components/warehouse/PickingInfoPanel";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import UsageGuide, {
   LAYOUT_EDIT_GUIDE_SECTIONS,
@@ -22,7 +24,7 @@ import UsageGuide, {
   LAYOUT_EDIT_GUIDE_WARNINGS,
 } from "@/components/ui/UsageGuide";
 import { useToast } from "@/components/ui/Toast";
-import type { WarehouseLayout, Zone, Rack } from "@/types/warehouse";
+import type { WarehouseLayout, Zone, Rack, PickingLocationInfo, ActivePickingData } from "@/types/warehouse";
 
 async function fetchWarehouseLayout(id: string): Promise<WarehouseLayout> {
   const res = await fetch(`/api/warehouse/${id}/layout`);
@@ -102,6 +104,32 @@ async function bulkArrangeRacks(zoneId: number, params: BulkArrangeParams): Prom
   return res.json();
 }
 
+// Phase 2: 활성 피킹 작업 조회
+async function fetchActivePickingData(): Promise<ActivePickingData> {
+  const res = await fetch("/api/picking-tasks/active");
+  if (!res.ok) throw new Error("Failed to fetch active picking data");
+  return res.json();
+}
+
+// Phase 3: 빠른 피킹 처리
+async function quickPickItem(itemId: number, qty: number): Promise<void> {
+  // 1. 스캔 처리
+  const scanRes = await fetch(`/api/picking-items/${itemId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "scan" }),
+  });
+  if (!scanRes.ok) throw new Error("Failed to scan item");
+
+  // 2. 피킹 완료 처리
+  const pickRes = await fetch(`/api/picking-items/${itemId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "pick", pickedQty: qty }),
+  });
+  if (!pickRes.ok) throw new Error("Failed to pick item");
+}
+
 const ZONE_COLORS = [
   "#3B82F6", // Blue
   "#10B981", // Green
@@ -133,6 +161,11 @@ export default function WarehouseEditPage({
   const [isEditMode, setIsEditMode] = useState(false);
   const [isRackEditMode, setIsRackEditMode] = useState(false);
   const [showBulkArrange, setShowBulkArrange] = useState(false);
+
+  // Phase 2: 피킹 모드 상태
+  const [pickingMode, setPickingMode] = useState(false);
+  const [selectedPickingLocation, setSelectedPickingLocation] = useState<string | null>(null);
+  const [selectedPickingInfo, setSelectedPickingInfo] = useState<PickingLocationInfo | null>(null);
 
   const [bulkArrangeForm, setBulkArrangeForm] = useState({
     columns: 2,
@@ -173,6 +206,14 @@ export default function WarehouseEditPage({
   const { data: layout, isLoading } = useQuery({
     queryKey: ["warehouse-layout", id],
     queryFn: () => fetchWarehouseLayout(id),
+  });
+
+  // Phase 2: 활성 피킹 데이터 조회
+  const { data: activePickingData, refetch: refetchPickingData } = useQuery({
+    queryKey: ["active-picking-data"],
+    queryFn: fetchActivePickingData,
+    enabled: pickingMode,
+    refetchInterval: pickingMode ? 5000 : false, // 피킹 모드일 때 5초마다 갱신
   });
 
   const createZoneMutation = useMutation({
@@ -266,6 +307,29 @@ export default function WarehouseEditPage({
     },
     onError: () => toast.error("Rack 일괄 조정에 실패했습니다."),
   });
+
+  // Phase 3: 빠른 피킹 mutation
+  const quickPickMutation = useMutation({
+    mutationFn: ({ itemId, qty }: { itemId: number; qty: number }) =>
+      quickPickItem(itemId, qty),
+    onSuccess: () => {
+      refetchPickingData();
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      toast.success("피킹이 완료되었습니다.");
+    },
+    onError: () => toast.error("피킹 처리에 실패했습니다."),
+  });
+
+  // Phase 2: 피킹 위치 클릭 핸들러
+  const handlePickingLocationClick = (locationCode: string, pickingInfo: PickingLocationInfo) => {
+    setSelectedPickingLocation(locationCode);
+    setSelectedPickingInfo(pickingInfo);
+  };
+
+  // Phase 3: 빠른 피킹 핸들러
+  const handleQuickPick = (itemId: number, qty: number) => {
+    quickPickMutation.mutate({ itemId, qty });
+  };
 
   const resetZoneForm = () => {
     const nextCode = String.fromCharCode(
@@ -467,6 +531,21 @@ export default function WarehouseEditPage({
             tips={LAYOUT_EDIT_GUIDE_TIPS}
             warnings={LAYOUT_EDIT_GUIDE_WARNINGS}
           />
+          {/* Phase 2: 피킹 모드 토글 */}
+          <button
+            onClick={() => {
+              setPickingMode(!pickingMode);
+              if (!pickingMode) {
+                setPreviewMode(true); // 피킹 모드 활성화 시 미리보기 모드로
+              }
+              setSelectedPickingLocation(null);
+              setSelectedPickingInfo(null);
+            }}
+            className={`btn-secondary ${pickingMode ? "ring-2 ring-[var(--warning)] bg-yellow-50" : ""}`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            {pickingMode ? "피킹 모드 ON" : "피킹 모드"}
+          </button>
           <button
             onClick={() => setPreviewMode(!previewMode)}
             className={`btn-secondary ${previewMode ? "ring-2 ring-[var(--primary)]" : ""}`}
@@ -598,13 +677,51 @@ export default function WarehouseEditPage({
         )}
 
         {/* Map Preview */}
-        <div className={`glass-card p-4 ${previewMode ? "lg:col-span-3" : "lg:col-span-2"}`}>
+        <div className={`glass-card p-4 ${previewMode && !pickingMode ? "lg:col-span-3" : "lg:col-span-2"}`}>
           <WarehouseMap
             layout={layout}
-            showPartCounts
+            showPartCounts={!pickingMode}
             className={previewMode ? "h-[600px]" : ""}
+            pickingMode={pickingMode}
+            activePickingLocations={activePickingData?.locationSummary}
+            onPickingLocationClick={handlePickingLocationClick}
           />
         </div>
+
+        {/* Phase 2: 피킹 정보 패널 */}
+        {pickingMode && selectedPickingLocation && (
+          <div className="glass-card p-0 lg:col-span-1 h-[600px]">
+            <PickingInfoPanel
+              locationCode={selectedPickingLocation}
+              pickingInfo={selectedPickingInfo}
+              onClose={() => {
+                setSelectedPickingLocation(null);
+                setSelectedPickingInfo(null);
+              }}
+              onQuickPick={handleQuickPick}
+              isLoading={quickPickMutation.isPending}
+            />
+          </div>
+        )}
+
+        {/* 피킹 모드 활성화 상태 표시 */}
+        {pickingMode && !selectedPickingLocation && (
+          <div className="lg:col-span-1 glass-card p-6 flex items-center justify-center">
+            <div className="text-center text-[var(--text-muted)]">
+              <ClipboardCheck className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="font-medium mb-2">피킹 모드 활성화</p>
+              <p className="text-sm">
+                맵에서 피킹 위치를 클릭하여<br />
+                피킹 정보를 확인하세요.
+              </p>
+              {activePickingData?.tasks && activePickingData.tasks.length > 0 && (
+                <p className="text-xs mt-4 text-[var(--primary)]">
+                  진행 중 작업: {activePickingData.tasks.length}개
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Zone Form Modal */}

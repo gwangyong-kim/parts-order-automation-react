@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
   SUBMITTED: "제출됨",
   APPROVED: "승인됨",
   ORDERED: "발주됨",
+  PARTIAL: "부분입고",
   RECEIVED: "입고완료",
   CANCELLED: "취소됨",
 };

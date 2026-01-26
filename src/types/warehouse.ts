@@ -153,3 +153,28 @@ export interface PickingItem {
     unit: string;
   };
 }
+
+// Phase 2: 피킹 위치 정보 (창고 맵 연동용)
+export interface PickingLocationInfo {
+  taskId: number;
+  taskCode: string;
+  status: "pending" | "in_progress" | "completed";
+  items: {
+    id: number;
+    partId: number;
+    partCode: string;
+    partName: string;
+    unit: string;
+    requiredQty: number;
+    pickedQty: number;
+    status: string;
+    notes: string | null;
+  }[];
+  totalRequired: number;
+  totalPicked: number;
+}
+
+export interface ActivePickingData {
+  tasks: PickingTask[];
+  locationSummary: Record<string, PickingLocationInfo>;
+}

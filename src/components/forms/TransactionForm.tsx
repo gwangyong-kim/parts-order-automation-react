@@ -7,24 +7,42 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 
-interface Transaction {
+interface TransactionFormData {
   partId: number;
   transactionType: string;
   quantity: number;
   notes: string | null;
 }
 
+interface TransactionData {
+  id: number;
+  transactionCode: string;
+  partId?: number;
+  transactionType: string;
+  quantity: number;
+  beforeQty: number;
+  afterQty: number;
+  notes: string | null;
+  part?: {
+    id: number;
+    partCode?: string;
+    partName: string;
+  };
+}
+
 interface Part {
   id: number;
-  partNumber: string;
+  partCode?: string;
+  partNumber?: string;
   partName: string;
 }
 
 interface TransactionFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: Partial<Transaction>) => void;
+  onSubmit: (data: Partial<TransactionFormData>) => void;
   isLoading?: boolean;
+  initialData?: TransactionData | null;
 }
 
 async function fetchParts(): Promise<Part[]> {
@@ -44,8 +62,11 @@ export default function TransactionForm({
   onClose,
   onSubmit,
   isLoading = false,
+  initialData = null,
 }: TransactionFormProps) {
-  const [formData, setFormData] = useState<Partial<Transaction>>({
+  const isEditMode = !!initialData;
+
+  const [formData, setFormData] = useState<Partial<TransactionFormData>>({
     partId: 0,
     transactionType: "INBOUND",
     quantity: 0,
@@ -62,20 +83,29 @@ export default function TransactionForm({
 
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        partId: 0,
-        transactionType: "INBOUND",
-        quantity: 0,
-        notes: "",
-      });
+      if (initialData) {
+        setFormData({
+          partId: initialData.partId || initialData.part?.id || 0,
+          transactionType: initialData.transactionType,
+          quantity: initialData.quantity,
+          notes: initialData.notes || "",
+        });
+      } else {
+        setFormData({
+          partId: 0,
+          transactionType: "INBOUND",
+          quantity: 0,
+          notes: "",
+        });
+      }
       setErrors({});
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.partId || formData.partId === 0) {
+    if (!isEditMode && (!formData.partId || formData.partId === 0)) {
       newErrors.partId = "파츠를 선택해주세요.";
     }
     if (!formData.quantity || formData.quantity <= 0) {
@@ -109,28 +139,40 @@ export default function TransactionForm({
   const partOptions =
     parts?.map((p) => ({
       value: p.id,
-      label: `${p.partNumber} - ${p.partName}`,
+      label: `${p.partCode || p.partNumber} - ${p.partName}`,
     })) || [];
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="수동 입출고"
+      title={isEditMode ? "입출고 수정" : "수동 입출고"}
       size="md"
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
-          <Select
-            label="파츠"
-            name="partId"
-            value={formData.partId?.toString()}
-            onChange={handleChange}
-            options={partOptions}
-            placeholder="파츠 선택"
-            error={errors.partId}
-            required
-          />
+          {isEditMode ? (
+            <div className="p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+              <p className="text-sm text-[var(--text-muted)]">파츠</p>
+              <p className="font-medium text-[var(--text-primary)]">
+                {initialData?.part?.partCode} - {initialData?.part?.partName}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                트랜잭션: {initialData?.transactionCode}
+              </p>
+            </div>
+          ) : (
+            <Select
+              label="파츠"
+              name="partId"
+              value={formData.partId?.toString()}
+              onChange={handleChange}
+              options={partOptions}
+              placeholder="파츠 선택"
+              error={errors.partId}
+              required
+            />
+          )}
           <Select
             label="유형"
             name="transactionType"
@@ -140,16 +182,24 @@ export default function TransactionForm({
             required
           />
           <Input
-            label="수량"
+            label={formData.transactionType === "ADJUSTMENT" ? "조정 후 재고" : "수량"}
             name="quantity"
             type="number"
             value={formData.quantity?.toString()}
             onChange={handleChange}
             error={errors.quantity}
             required
-            min={1}
-            placeholder="수량 입력"
+            min={formData.transactionType === "ADJUSTMENT" ? 0 : 1}
+            placeholder={formData.transactionType === "ADJUSTMENT" ? "조정 후 재고 입력" : "수량 입력"}
           />
+          {isEditMode && initialData && (
+            <div className="p-3 rounded-lg bg-[var(--info)]/10 text-sm text-[var(--text-secondary)]">
+              <p>현재 기록: {initialData.beforeQty} → {initialData.afterQty}</p>
+              <p className="text-xs mt-1 text-[var(--text-muted)]">
+                수정 시 재고가 자동으로 재계산됩니다.
+              </p>
+            </div>
+          )}
           <Textarea
             label="비고"
             name="notes"
@@ -190,6 +240,8 @@ export default function TransactionForm({
                 </svg>
                 처리 중...
               </span>
+            ) : isEditMode ? (
+              "수정"
             ) : (
               "등록"
             )}

@@ -14,9 +14,12 @@ import {
   ArrowUpRight,
   RotateCcw,
   ChevronDown,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import TransactionForm from "@/components/forms/TransactionForm";
 import ExcelUpload from "@/components/ui/ExcelUpload";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 
 const transactionUploadFields = [
@@ -34,9 +37,11 @@ interface Transaction {
   id: number;
   transactionCode: string;
   transactionType: string;
+  partId: number;
   part: {
     id: number;
-    partNumber: string;
+    partCode?: string;
+    partNumber?: string;
     partName: string;
   };
   quantity: number;
@@ -75,6 +80,29 @@ async function createTransaction(data: Partial<TransactionInput>): Promise<Trans
   return res.json();
 }
 
+async function updateTransaction(id: number, data: Partial<TransactionInput>): Promise<Transaction> {
+  const res = await fetch(`/api/transactions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error || "Failed to update transaction");
+  }
+  return res.json();
+}
+
+async function deleteTransaction(id: number): Promise<void> {
+  const res = await fetch(`/api/transactions/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error || "Failed to delete transaction");
+  }
+}
+
 const typeColors: Record<string, string> = {
   INBOUND: "badge-success",
   OUTBOUND: "badge-danger",
@@ -103,6 +131,8 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>("all");
@@ -133,7 +163,7 @@ export default function TransactionsPage() {
     const rows = filteredTransactions.map((tx) => [
       tx.transactionCode,
       typeLabels[tx.transactionType] || tx.transactionType,
-      tx.part.partNumber,
+      tx.part.partCode || tx.part.partNumber,
       tx.part.partName,
       tx.quantity,
       tx.beforeQty,
@@ -174,18 +204,71 @@ export default function TransactionsPage() {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success("입출고가 처리되었습니다.");
       setShowFormModal(false);
+      setSelectedTransaction(null);
     },
     onError: () => {
       toast.error("입출고 처리에 실패했습니다.");
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<TransactionInput> }) =>
+      updateTransaction(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("입출고 내역이 수정되었습니다.");
+      setShowFormModal(false);
+      setSelectedTransaction(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "입출고 수정에 실패했습니다.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("입출고 내역이 삭제되었습니다.");
+      setShowDeleteDialog(false);
+      setSelectedTransaction(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "입출고 삭제에 실패했습니다.");
+    },
+  });
+
   const handleCreate = () => {
+    setSelectedTransaction(null);
     setShowFormModal(true);
   };
 
+  const handleEdit = (tx: Transaction, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedTransaction(tx);
+    setShowFormModal(true);
+  };
+
+  const handleDelete = (tx: Transaction, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedTransaction(tx);
+    setShowDeleteDialog(true);
+  };
+
   const handleFormSubmit = (data: Partial<TransactionInput>) => {
-    createMutation.mutate(data);
+    if (selectedTransaction) {
+      updateMutation.mutate({ id: selectedTransaction.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const handleDeleteConfirm = () => {
+    if (selectedTransaction) {
+      deleteMutation.mutate(selectedTransaction.id);
+    }
   };
 
   const handleBulkUpload = async (data: Record<string, unknown>[]) => {
@@ -215,9 +298,10 @@ export default function TransactionsPage() {
   };
 
   const filteredTransactions = transactions?.filter((tx) => {
+    const partCode = tx.part.partCode || tx.part.partNumber || "";
     const matchesSearch =
       tx.transactionCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      partCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter ? tx.transactionType === typeFilter : true;
 
@@ -406,21 +490,23 @@ export default function TransactionsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header w-[140px]">거래코드</th>
-                <th className="table-header w-[80px] text-center">유형</th>
-                <th className="table-header min-w-[200px]">파츠</th>
-                <th className="table-header w-[100px] text-right">수량</th>
-                <th className="table-header w-[80px] text-right">이전</th>
-                <th className="table-header w-[80px] text-right">이후</th>
-                <th className="table-header w-[80px] text-center">참조</th>
-                <th className="table-header w-[80px] text-center">처리자</th>
-                <th className="table-header w-[160px] text-right">일시</th>
+                <th className="table-header whitespace-nowrap">거래코드</th>
+                <th className="table-header text-center whitespace-nowrap">유형</th>
+                <th className="table-header">파츠</th>
+                <th className="table-header text-right whitespace-nowrap">수량</th>
+                <th className="table-header text-right whitespace-nowrap">이전</th>
+                <th className="table-header text-right whitespace-nowrap">이후</th>
+                <th className="table-header text-center whitespace-nowrap">참조</th>
+                <th className="table-header text-center whitespace-nowrap">처리자</th>
+                <th className="table-header whitespace-nowrap">비고</th>
+                <th className="table-header text-right whitespace-nowrap">일시</th>
+                <th className="table-header text-center whitespace-nowrap">작업</th>
               </tr>
             </thead>
             <tbody>
               {filteredTransactions?.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-cell text-center py-8">
+                  <td colSpan={11} className="table-cell text-center py-8">
                     <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm || typeFilter ? "검색 결과가 없습니다." : "입출고 내역이 없습니다."}
@@ -438,12 +524,22 @@ export default function TransactionsPage() {
               ) : (
                 filteredTransactions?.map((tx) => {
                   const Icon = typeIcons[tx.transactionType] || ArrowLeftRight;
+                  const partCode = tx.part.partCode || tx.part.partNumber || "";
                   return (
                     <tr
                       key={tx.id}
-                      className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                      className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors cursor-pointer"
+                      onClick={() => window.location.href = `/transactions/${tx.id}`}
                     >
-                      <td className="table-cell font-medium font-mono text-sm">{tx.transactionCode}</td>
+                      <td className="table-cell">
+                        <Link
+                          href={`/transactions/${tx.id}`}
+                          className="font-medium font-mono text-xs text-[var(--primary)] hover:underline break-all"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {tx.transactionCode}
+                        </Link>
+                      </td>
                       <td className="table-cell text-center">
                         <span
                           className={`badge ${typeColors[tx.transactionType] || "badge-secondary"} inline-flex items-center gap-1`}
@@ -452,15 +548,16 @@ export default function TransactionsPage() {
                           {typeLabels[tx.transactionType] || tx.transactionType}
                         </span>
                       </td>
-                      <td className="table-cell">
-                        <div>
+                      <td className="table-cell max-w-[250px]">
+                        <div className="min-w-0">
                           <Link
                             href={`/parts/${tx.part.id}`}
-                            className="font-medium text-[var(--primary)] hover:underline"
+                            className="font-medium text-[var(--primary)] hover:underline block truncate"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {tx.part.partNumber}
+                            {partCode}
                           </Link>
-                          <p className="text-sm text-[var(--text-muted)]">{tx.part.partName}</p>
+                          <p className="text-sm text-[var(--text-muted)] truncate" title={tx.part.partName}>{tx.part.partName}</p>
                         </div>
                       </td>
                       <td className="table-cell text-right tabular-nums">
@@ -487,8 +584,31 @@ export default function TransactionsPage() {
                         {tx.referenceType || "-"}
                       </td>
                       <td className="table-cell text-center">{tx.createdBy?.name || "-"}</td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] whitespace-nowrap">
+                      <td className="table-cell text-sm text-[var(--text-secondary)] max-w-[150px]">
+                        <span className="block truncate" title={tx.notes || ""}>{tx.notes || "-"}</span>
+                      </td>
+                      <td className="table-cell text-right text-[var(--text-secondary)] text-sm whitespace-nowrap">
                         {new Date(tx.createdAt).toLocaleString("ko-KR")}
+                      </td>
+                      <td className="table-cell text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={(e) => handleEdit(tx, e)}
+                            className="table-action-btn edit"
+                            title="수정"
+                            aria-label={`${tx.transactionCode} 수정`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(tx, e)}
+                            className="table-action-btn delete"
+                            title="삭제"
+                            aria-label={`${tx.transactionCode} 삭제`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -502,9 +622,28 @@ export default function TransactionsPage() {
       {/* Transaction Form Modal */}
       <TransactionForm
         isOpen={showFormModal}
-        onClose={() => setShowFormModal(false)}
+        onClose={() => {
+          setShowFormModal(false);
+          setSelectedTransaction(null);
+        }}
         onSubmit={handleFormSubmit}
-        isLoading={createMutation.isPending}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+        initialData={selectedTransaction}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setSelectedTransaction(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="입출고 내역 삭제"
+        message={`"${selectedTransaction?.transactionCode}" 내역을 삭제하시겠습니까?\n\n삭제 시 재고가 해당 트랜잭션 이전 상태로 롤백됩니다.`}
+        confirmText="삭제"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
       />
 
       {/* Excel Upload Modal */}

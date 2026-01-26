@@ -32,34 +32,40 @@ export async function GET() {
       }),
     ]);
 
-    // Aggregate by month
-    const monthlyData: Record<string, { inbound: number; outbound: number }> = {};
+    // Aggregate by year-month to avoid cross-year data mixing
+    const monthlyData: Record<string, { inbound: number; outbound: number; displayMonth: string }> = {};
     const months = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
-    // Initialize last 6 months
+    // Initialize last 6 months with year-month key
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
-      const monthKey = months[date.getMonth()];
-      monthlyData[monthKey] = { inbound: 0, outbound: 0 };
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const displayMonth = months[date.getMonth()];
+      monthlyData[yearMonth] = { inbound: 0, outbound: 0, displayMonth };
     }
 
-    // Aggregate transactions
+    // Aggregate transactions using year-month key
     transactions.forEach((tx) => {
-      const monthKey = months[new Date(tx.createdAt).getMonth()];
-      if (monthlyData[monthKey]) {
+      const txDate = new Date(tx.createdAt);
+      const yearMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyData[yearMonth]) {
         if (tx.transactionType === "INBOUND") {
-          monthlyData[monthKey].inbound += tx.quantity;
-        } else {
-          monthlyData[monthKey].outbound += tx.quantity;
+          monthlyData[yearMonth].inbound += tx.quantity;
+        } else if (tx.transactionType === "OUTBOUND") {
+          monthlyData[yearMonth].outbound += tx.quantity;
         }
       }
     });
 
-    const monthlyTransactions = Object.entries(monthlyData).map(([month, data]) => ({
-      month,
-      ...data,
-    }));
+    // Convert to array with display month names (sorted by year-month)
+    const monthlyTransactions = Object.entries(monthlyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, data]) => ({
+        month: data.displayMonth,
+        inbound: data.inbound,
+        outbound: data.outbound,
+      }));
 
     // Process category distribution
     const categoryDistribution = categoriesWithCounts
@@ -74,11 +80,12 @@ export async function GET() {
       SUBMITTED: "#3b82f6", // blue
       APPROVED: "#22c55e",  // green
       ORDERED: "#f59e0b",   // amber
+      PARTIAL: "#8b5cf6",   // purple
       RECEIVED: "#6366f1",  // indigo
       CANCELLED: "#ef4444", // red
     };
 
-    const allStatuses = ["DRAFT", "SUBMITTED", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"];
+    const allStatuses = ["DRAFT", "SUBMITTED", "APPROVED", "ORDERED", "PARTIAL", "RECEIVED", "CANCELLED"];
     const orderStatus = allStatuses.map((status) => {
       const found = orderStatusCounts.find((o) => o.status === status);
       return {

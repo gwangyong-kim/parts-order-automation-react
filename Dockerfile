@@ -38,7 +38,7 @@ RUN npm run build
 
 # Copy local database (managed by user)
 RUN mkdir -p /app/data
-COPY dev.db /app/data/partsync.db
+COPY prisma/dev.db /app/data/partsync.db
 
 # ==========================================
 # Stage 3: Runner (Production)

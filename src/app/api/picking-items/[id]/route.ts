@@ -40,6 +40,20 @@ export async function PUT(request: Request, { params }: Params) {
       updateData.notes = `[FLAGGED: ${flagType}] ${flagNotes}`.trim();
     }
 
+    // Handle revert-skip action (SKIPPED -> PENDING)
+    if (body.action === "revert-skip") {
+      updateData.status = "PENDING";
+      updateData.notes = body.notes ?? null;
+    }
+
+    // Handle revert-pick action (PICKED -> PENDING)
+    if (body.action === "revert-pick") {
+      updateData.status = "PENDING";
+      updateData.pickedQty = 0;
+      updateData.scannedAt = null;
+      updateData.verifiedAt = null;
+    }
+
     // Direct status update
     if (body.status !== undefined) updateData.status = body.status;
     if (body.pickedQty !== undefined) updateData.pickedQty = body.pickedQty;

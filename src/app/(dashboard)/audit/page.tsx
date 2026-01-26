@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   ClipboardCheck,
   Plus,
@@ -16,15 +17,24 @@ import {
   AlertTriangle,
   Edit2,
   Trash2,
+  Calendar,
+  Repeat,
+  Target,
+  FileText,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 import AuditForm from "@/components/forms/AuditForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
 interface AuditRecord {
   id: number;
   auditCode: string;
   auditDate: string;
+  auditType: string;
+  auditScope: "ALL" | "PARTIAL";
   status: string;
   totalItems: number;
   matchedItems: number;
@@ -36,6 +46,20 @@ interface AuditRecord {
   } | null;
   completedAt: string | null;
 }
+
+const auditTypeLabels: Record<string, string> = {
+  MONTHLY: "월간 실사",
+  QUARTERLY: "분기 실사",
+  YEARLY: "연간 실사",
+  SPOT: "비정기 실사",
+};
+
+const auditTypeColors: Record<string, string> = {
+  MONTHLY: "badge-primary",
+  QUARTERLY: "badge-info",
+  YEARLY: "badge-warning",
+  SPOT: "badge-secondary",
+};
 
 async function fetchAudits(): Promise<AuditRecord[]> {
   const res = await fetch("/api/audit");
@@ -88,8 +112,10 @@ export default function AuditPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState<AuditRecord | null>(null);
 
   const { data: audits, isLoading, error } = useQuery({
@@ -112,11 +138,14 @@ export default function AuditPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<AuditRecord> }) =>
       updateAudit(id, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["audits"] });
-      toast.success("실사가 수정되었습니다.");
-      setShowFormModal(false);
-      setSelectedAudit(null);
+      // 실사 시작(상태 변경만)이 아닌 경우에만 메시지 표시 및 상태 초기화
+      if (variables.data.status !== "IN_PROGRESS" || Object.keys(variables.data).length > 1) {
+        toast.success("실사가 수정되었습니다.");
+        setShowFormModal(false);
+        setSelectedAudit(null);
+      }
     },
     onError: () => {
       toast.error("실사 수정에 실패했습니다.");
@@ -152,10 +181,18 @@ export default function AuditPage() {
   };
 
   const handleStartAudit = (audit: AuditRecord) => {
-    updateMutation.mutate({
-      id: audit.id,
-      data: { status: "IN_PROGRESS" },
-    });
+    setSelectedAudit(audit);
+    updateMutation.mutate(
+      {
+        id: audit.id,
+        data: { status: "IN_PROGRESS" },
+      },
+      {
+        onSuccess: () => {
+          setShowGuideModal(true);
+        },
+      }
+    );
   };
 
   const handleFormSubmit = (data: Partial<AuditRecord>) => {
@@ -172,9 +209,11 @@ export default function AuditPage() {
     }
   };
 
-  const filteredAudits = audits?.filter((audit) =>
-    audit.auditCode.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAudits = audits?.filter((audit) => {
+    const matchesSearch = audit.auditCode.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = typeFilter === "ALL" || audit.auditType === typeFilter;
+    return matchesSearch && matchesType;
+  });
 
   const inProgressCount = audits?.filter((a) => a.status === "IN_PROGRESS").length || 0;
   const completedCount = audits?.filter((a) => a.status === "COMPLETED").length || 0;
@@ -275,10 +314,17 @@ export default function AuditPage() {
             />
           </div>
           <div className="flex gap-2">
-            <button className="btn-secondary flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              필터
-            </button>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="input"
+            >
+              <option value="ALL">모든 유형</option>
+              <option value="MONTHLY">월간 실사</option>
+              <option value="QUARTERLY">분기 실사</option>
+              <option value="YEARLY">연간 실사</option>
+              <option value="SPOT">비정기 실사</option>
+            </select>
             <button className="btn-secondary flex items-center gap-2">
               <Download className="w-4 h-4" />
               내보내기
@@ -294,6 +340,7 @@ export default function AuditPage() {
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
                 <th className="table-header">실사코드</th>
+                <th className="table-header">유형</th>
                 <th className="table-header">실사일</th>
                 <th className="table-header">상태</th>
                 <th className="table-header text-right">총 품목</th>
@@ -307,7 +354,7 @@ export default function AuditPage() {
             <tbody>
               {filteredAudits?.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-cell text-center py-8">
+                  <td colSpan={10} className="table-cell text-center py-8">
                     <ClipboardCheck className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "실사 기록이 없습니다."}
@@ -329,6 +376,11 @@ export default function AuditPage() {
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
                     <td className="table-cell font-medium">{audit.auditCode}</td>
+                    <td className="table-cell">
+                      <span className={`badge ${auditTypeColors[audit.auditType] || "badge-secondary"}`}>
+                        {auditTypeLabels[audit.auditType] || audit.auditType}
+                      </span>
+                    </td>
                     <td className="table-cell">
                       {new Date(audit.auditDate).toLocaleDateString("ko-KR")}
                     </td>
@@ -358,13 +410,14 @@ export default function AuditPage() {
                     </td>
                     <td className="table-cell text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button
+                        <Link
+                          href={`/audit/${audit.id}`}
                           className="table-action-btn edit"
                           title="상세보기"
                           aria-label={`${audit.auditCode} 상세보기`}
                         >
                           <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        </Link>
                         {audit.status === "PLANNED" && (
                           <button
                             onClick={() => handleStartAudit(audit)}
@@ -427,6 +480,121 @@ export default function AuditPage() {
         variant="danger"
         isLoading={deleteMutation.isPending}
       />
+
+      {/* Audit Start Guide Modal */}
+      <Modal
+        isOpen={showGuideModal}
+        onClose={() => {
+          setShowGuideModal(false);
+          setSelectedAudit(null);
+        }}
+        title="실사가 시작되었습니다"
+        size="lg"
+      >
+        <div className="space-y-6">
+          {/* Header Info */}
+          <div className="bg-[var(--primary)]/10 rounded-lg p-4 flex items-start gap-3">
+            <Info className="w-5 h-5 text-[var(--primary)] mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-[var(--text-primary)]">
+                {selectedAudit?.auditCode} 실사가 시작되었습니다.
+              </p>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                아래 안내에 따라 실사를 진행해 주세요.
+              </p>
+            </div>
+          </div>
+
+          {/* Step Guide */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              실사 진행 단계
+            </h3>
+
+            <div className="space-y-3">
+              {/* Step 1 */}
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors">
+                <div className="w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm">
+                  1
+                </div>
+                <div>
+                  <p className="font-medium text-[var(--text-primary)]">재고 품목 확인</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    실사 대상 품목 목록을 확인하고 실제 재고 위치를 파악합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors">
+                <div className="w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm">
+                  2
+                </div>
+                <div>
+                  <p className="font-medium text-[var(--text-primary)]">실제 수량 입력</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    각 품목의 실제 수량을 확인하여 시스템에 입력합니다. 상세 페이지에서 품목별 수량을 기록할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors">
+                <div className="w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm">
+                  3
+                </div>
+                <div>
+                  <p className="font-medium text-[var(--text-primary)]">불일치 항목 처리</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    시스템 수량과 실제 수량이 다른 경우, 원인을 파악하고 조정 사유를 기록합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors">
+                <div className="w-8 h-8 bg-[var(--success)] text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm">
+                  4
+                </div>
+                <div>
+                  <p className="font-medium text-[var(--text-primary)]">실사 완료</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    모든 품목의 실사가 완료되면 상태를 &apos;완료&apos;로 변경합니다. 필요시 관리자 승인을 요청합니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--glass-border)]">
+            <button
+              onClick={() => {
+                setShowGuideModal(false);
+                setSelectedAudit(null);
+              }}
+              className="btn-secondary"
+            >
+              나중에 하기
+            </button>
+            <button
+              onClick={() => {
+                if (selectedAudit?.id) {
+                  setShowGuideModal(false);
+                  // Navigate to audit detail page
+                  window.location.href = `/audit/${selectedAudit.id}`;
+                }
+              }}
+              className="btn-primary flex items-center gap-2"
+              disabled={!selectedAudit?.id}
+            >
+              실사 시작하기
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

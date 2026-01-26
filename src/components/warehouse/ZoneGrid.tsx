@@ -1,6 +1,6 @@
 "use client";
 
-import type { Zone, Rack, Shelf } from "@/types/warehouse";
+import type { Zone, Rack, Shelf, PickingLocationInfo } from "@/types/warehouse";
 
 interface ZoneWithRacks extends Zone {
   racks: (Rack & {
@@ -19,6 +19,9 @@ interface ZoneGridProps {
   isHighlighted?: boolean;
   onLocationClick?: (locationCode: string) => void;
   showPartCounts?: boolean;
+  // Phase 2: 피킹 모드 props
+  pickingMode?: boolean;
+  activePickingLocations?: Record<string, PickingLocationInfo>;
 }
 
 export default function ZoneGrid({
@@ -29,6 +32,8 @@ export default function ZoneGrid({
   isHighlighted,
   onLocationClick,
   showPartCounts,
+  pickingMode = false,
+  activePickingLocations,
 }: ZoneGridProps) {
   const x = offsetX + zone.posX;
   const y = offsetY + zone.posY;
@@ -112,6 +117,41 @@ export default function ZoneGrid({
               const isShelfHighlighted = shelf.locationCode === highlightLocation;
               const hasItems = (shelf.partCount ?? 0) > 0;
 
+              // Phase 2: 피킹 상태 확인
+              const pickingInfo = pickingMode && shelf.locationCode
+                ? activePickingLocations?.[shelf.locationCode]
+                : null;
+              const hasPicking = !!pickingInfo;
+              const pickingStatus = pickingInfo?.status;
+
+              // 피킹 상태에 따른 색상 결정
+              const getShelfFill = () => {
+                if (isShelfHighlighted) return "var(--primary)";
+                if (pickingMode && hasPicking) {
+                  switch (pickingStatus) {
+                    case "in_progress": return "#3b82f6"; // blue-500
+                    case "completed": return "#22c55e"; // green-500
+                    case "pending": return "#facc15"; // yellow-400
+                    default: return "white";
+                  }
+                }
+                if (hasItems) return "var(--success-light, #dcfce7)";
+                return "white";
+              };
+
+              const getShelfStroke = () => {
+                if (isShelfHighlighted) return "var(--primary)";
+                if (pickingMode && hasPicking) {
+                  switch (pickingStatus) {
+                    case "in_progress": return "#2563eb"; // blue-600
+                    case "completed": return "#16a34a"; // green-600
+                    case "pending": return "#eab308"; // yellow-500
+                    default: return "transparent";
+                  }
+                }
+                return "transparent";
+              };
+
               return (
                 <g
                   key={shelf.id}
@@ -123,21 +163,21 @@ export default function ZoneGrid({
                     y={shelfY + 1}
                     width={rackWidth - 2}
                     height={rackHeight - 2}
-                    fill={
-                      isShelfHighlighted
-                        ? "var(--primary)"
-                        : hasItems
-                        ? "var(--success-light, #dcfce7)"
-                        : "white"
-                    }
-                    stroke={isShelfHighlighted ? "var(--primary)" : "transparent"}
-                    strokeWidth={isShelfHighlighted ? 1 : 0}
+                    fill={getShelfFill()}
+                    stroke={getShelfStroke()}
+                    strokeWidth={isShelfHighlighted || (pickingMode && hasPicking) ? 1.5 : 0}
                     rx="1"
-                    className={isShelfHighlighted ? "animate-pulse" : "hover:fill-[var(--gray-200)]"}
+                    className={
+                      isShelfHighlighted
+                        ? "animate-pulse"
+                        : pickingStatus === "in_progress"
+                        ? "animate-pulse"
+                        : "hover:fill-[var(--gray-200)]"
+                    }
                   />
 
                   {/* Part count indicator */}
-                  {showPartCounts && hasItems && !isShelfHighlighted && (
+                  {showPartCounts && hasItems && !isShelfHighlighted && !hasPicking && (
                     <circle
                       cx={rackX + rackWidth - 3}
                       cy={shelfY + 3}
@@ -146,8 +186,21 @@ export default function ZoneGrid({
                     />
                   )}
 
+                  {/* Phase 2: 피킹 수량 배지 */}
+                  {pickingMode && hasPicking && pickingInfo && (
+                    <text
+                      x={rackX + rackWidth / 2}
+                      y={shelfY + rackHeight / 2 + 2}
+                      textAnchor="middle"
+                      className="text-[5px] font-bold"
+                      fill={pickingStatus === "pending" ? "#000" : "#fff"}
+                    >
+                      {pickingInfo.totalPicked}/{pickingInfo.totalRequired}
+                    </text>
+                  )}
+
                   {/* Highlighted shelf marker */}
-                  {isShelfHighlighted && (
+                  {isShelfHighlighted && !hasPicking && (
                     <text
                       x={rackX + rackWidth / 2}
                       y={shelfY + rackHeight / 2 + 2}

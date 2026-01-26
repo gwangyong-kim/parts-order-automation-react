@@ -10,6 +10,7 @@ export async function GET() {
       include: {
         category: true,
         supplier: true,
+        inventory: true,
       },
       orderBy: { createdAt: "desc" },
     });

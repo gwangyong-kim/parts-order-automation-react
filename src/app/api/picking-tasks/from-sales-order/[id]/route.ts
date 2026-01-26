@@ -76,8 +76,9 @@ export async function POST(request: Request, { params }: Params) {
 
     for (const item of salesOrder.items) {
       for (const bomItem of item.product.bomItems) {
+        // 소요량 = 주문수량 × 단위당 소요량 × (1 + 손실률)
         const neededQty = Math.ceil(
-          item.orderQty * bomItem.quantityPerUnit * (1 + (bomItem.lossRate - 1))
+          item.orderQty * bomItem.quantityPerUnit * (1 + bomItem.lossRate)
         );
         const existing = partsNeeded.get(bomItem.partId);
 
