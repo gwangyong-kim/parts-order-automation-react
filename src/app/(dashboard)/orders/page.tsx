@@ -49,9 +49,10 @@ interface Order {
 }
 
 async function fetchOrders(): Promise<Order[]> {
-  const res = await fetch("/api/orders");
+  const res = await fetch("/api/orders?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch orders");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function createOrder(data: Partial<Order>): Promise<Order> {
@@ -471,12 +472,12 @@ export default function OrdersPage() {
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
                     <td className="table-cell font-medium">
-                      <button
-                        onClick={() => handleEdit(order)}
-                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="text-[var(--primary)] hover:underline"
                       >
                         {order.orderNumber}
-                      </button>
+                      </Link>
                     </td>
                     <td className="table-cell">
                       {order.supplier ? (
@@ -509,13 +510,14 @@ export default function OrdersPage() {
                     </td>
                     <td className="table-cell text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button
+                        <Link
+                          href={`/orders/${order.id}`}
                           className="table-action-btn edit"
                           title="상세보기"
                           aria-label={`${order.orderNumber} 상세보기`}
                         >
                           <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        </Link>
                         <button
                           onClick={() => handleEdit(order)}
                           className="table-action-btn edit"
