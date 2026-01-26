@@ -30,16 +30,26 @@ export async function GET() {
 
     // Transform to match frontend expectations
     const transformedResults = results.map((result) => ({
-      ...result,
+      id: result.id,
       part: result.part ? {
-        ...result.part,
+        id: result.part.id,
         partNumber: result.part.partCode,
+        partName: result.part.partName,
+        unit: result.part.unit,
         leadTime: result.part.leadTimeDays,
       } : null,
-      // Calculate urgency based on suggested order date
+      salesOrderId: result.salesOrderId,
+      totalRequirement: result.grossRequirement,
+      currentStock: result.currentStock,
+      incomingQty: result.incomingQty,
+      safetyStock: result.part?.safetyStock ?? 0,
+      netRequirement: result.netRequirement,
+      recommendedOrderQty: result.suggestedOrderQty,
+      recommendedOrderDate: result.suggestedOrderDate,
       urgency: result.suggestedOrderDate
         ? getUrgencyLevel(result.suggestedOrderDate)
         : "LOW",
+      calculatedAt: result.createdAt,
     }));
 
     return NextResponse.json(transformedResults);

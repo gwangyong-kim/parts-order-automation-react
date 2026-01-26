@@ -247,9 +247,9 @@ export default function MrpPage() {
                           href="/parts"
                           className="font-medium text-[var(--primary)] hover:underline"
                         >
-                          {result.part.partNumber}
+                          {result.part?.partNumber ?? "-"}
                         </Link>
-                        <p className="text-sm text-[var(--text-muted)]">{result.part.partName}</p>
+                        <p className="text-sm text-[var(--text-muted)]">{result.part?.partName ?? "-"}</p>
                       </div>
                     </td>
                     <td className="table-cell text-right">{result.totalRequirement.toLocaleString()}</td>

@@ -406,15 +406,15 @@ export default function TransactionsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">거래코드</th>
-                <th className="table-header">유형</th>
-                <th className="table-header">파츠</th>
-                <th className="table-header text-right">수량</th>
-                <th className="table-header text-right">이전</th>
-                <th className="table-header text-right">이후</th>
-                <th className="table-header">참조</th>
-                <th className="table-header">처리자</th>
-                <th className="table-header">일시</th>
+                <th className="table-header w-[140px]">거래코드</th>
+                <th className="table-header w-[80px] text-center">유형</th>
+                <th className="table-header min-w-[200px]">파츠</th>
+                <th className="table-header w-[100px] text-right">수량</th>
+                <th className="table-header w-[80px] text-right">이전</th>
+                <th className="table-header w-[80px] text-right">이후</th>
+                <th className="table-header w-[80px] text-center">참조</th>
+                <th className="table-header w-[80px] text-center">처리자</th>
+                <th className="table-header w-[160px] text-right">일시</th>
               </tr>
             </thead>
             <tbody>
@@ -443,10 +443,10 @@ export default function TransactionsPage() {
                       key={tx.id}
                       className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                     >
-                      <td className="table-cell font-medium">{tx.transactionCode}</td>
-                      <td className="table-cell">
+                      <td className="table-cell font-medium font-mono text-sm">{tx.transactionCode}</td>
+                      <td className="table-cell text-center">
                         <span
-                          className={`badge ${typeColors[tx.transactionType] || "badge-secondary"} flex items-center gap-1 w-fit`}
+                          className={`badge ${typeColors[tx.transactionType] || "badge-secondary"} inline-flex items-center gap-1`}
                         >
                           <Icon className="w-3 h-3" />
                           {typeLabels[tx.transactionType] || tx.transactionType}
@@ -463,7 +463,7 @@ export default function TransactionsPage() {
                           <p className="text-sm text-[var(--text-muted)]">{tx.part.partName}</p>
                         </div>
                       </td>
-                      <td className="table-cell text-right">
+                      <td className="table-cell text-right tabular-nums">
                         <span
                           className={`font-bold ${
                             tx.transactionType === "INBOUND"
@@ -474,18 +474,20 @@ export default function TransactionsPage() {
                           }`}
                         >
                           {tx.transactionType === "INBOUND" ? "+" : tx.transactionType === "OUTBOUND" ? "-" : ""}
-                          {tx.quantity}
+                          {tx.quantity.toLocaleString()}
                         </span>
                       </td>
                       <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums">
-                        {tx.beforeQty}
+                        {tx.beforeQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-right font-medium tabular-nums">{tx.afterQty}</td>
-                      <td className="table-cell text-[var(--text-secondary)]">
+                      <td className="table-cell text-right font-medium tabular-nums">
+                        {tx.afterQty.toLocaleString()}
+                      </td>
+                      <td className="table-cell text-center text-[var(--text-secondary)]">
                         {tx.referenceType || "-"}
                       </td>
-                      <td className="table-cell">{tx.createdBy?.name || "-"}</td>
-                      <td className="table-cell text-[var(--text-secondary)]">
+                      <td className="table-cell text-center">{tx.createdBy?.name || "-"}</td>
+                      <td className="table-cell text-right text-[var(--text-secondary)] whitespace-nowrap">
                         {new Date(tx.createdAt).toLocaleString("ko-KR")}
                       </td>
                     </tr>

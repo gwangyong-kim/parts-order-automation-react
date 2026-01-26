@@ -82,6 +82,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
     maxAge: 24 * 60 * 60, // 24 hours
   },
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || "partsync-secret-key-for-production-change-this",
 });
 
 // Type augmentation for next-auth

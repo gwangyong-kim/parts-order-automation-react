@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   ClipboardList,
   Plus,
@@ -11,7 +12,6 @@ import {
   Upload,
   Edit2,
   Trash2,
-  Eye,
   Calendar,
   ChevronDown,
 } from "lucide-react";
@@ -21,34 +21,90 @@ import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
 
 const salesOrderUploadFields = [
-  { name: "수주번호", description: "고유 수주 코드 (비워두면 자동생성: SO2501-0001)", required: false, type: "text", example: "SO2501-0001" },
+  { name: "수주번호", description: "고유 수주 코드 (비워두면 자동생성: SO2601-0001)", required: false, type: "text", example: "SO2601-0001" },
   { name: "사업부", description: "담당 사업부", required: false, type: "text", example: "영업1팀" },
   { name: "담당자", description: "영업 담당자", required: false, type: "text", example: "홍길동" },
   { name: "프로젝트", description: "프로젝트명", required: false, type: "text", example: "A 프로젝트" },
-  { name: "수주일", description: "수주 접수일", required: true, type: "date", example: "2025-01-24" },
-  { name: "납기일", description: "납품 예정일", required: false, type: "date", example: "2025-02-28" },
-  { name: "제품코드", description: "제품 코드", required: false, type: "text", example: "PRD-001" },
-  { name: "제품명", description: "제품명 (코드 없을 시 사용)", required: false, type: "text", example: "조립품 A" },
-  { name: "수량", description: "주문 수량", required: false, type: "number", example: "100" },
+  { name: "수주일", description: "수주 접수일", required: true, type: "date", example: "2026-01-26" },
+  { name: "납기일", description: "납품 예정일", required: false, type: "date", example: "2026-02-28" },
+  { name: "상태", description: "수주 상태 (PENDING/CONFIRMED/IN_PRODUCTION/COMPLETED/CANCELLED)", required: false, type: "text", example: "PENDING" },
   { name: "비고", description: "기타 메모", required: false, type: "text", example: "긴급 납품" },
 ];
+
+interface SalesOrderItem {
+  id?: number;
+  productId: number;
+  productCode?: string;
+  productName?: string;
+  orderQty: number;
+  notes: string | null;
+}
 
 interface SalesOrder {
   id: number;
   orderNumber: string;
-  customerName: string;
+  division: string;
+  manager: string;
+  project: string;
   orderDate: string;
   deliveryDate: string;
   status: string;
-  totalAmount: number;
   notes: string | null;
-  items: { id: number }[];
+  items: SalesOrderItem[];
+}
+
+interface ApiSalesOrderItem {
+  id: number;
+  productId: number;
+  orderQty: number;
+  notes: string | null;
+  product?: {
+    id: number;
+    productCode: string;
+    productName: string;
+  };
+}
+
+interface ApiSalesOrder {
+  id: number;
+  orderCode: string;
+  division: string | null;
+  manager: string | null;
+  project: string | null;
+  orderDate: string;
+  dueDate: string | null;
+  status: string;
+  notes: string | null;
+  items: ApiSalesOrderItem[];
+}
+
+function mapApiToSalesOrder(api: ApiSalesOrder): SalesOrder {
+  return {
+    id: api.id,
+    orderNumber: api.orderCode,
+    division: api.division || "",
+    manager: api.manager || "",
+    project: api.project || "",
+    orderDate: api.orderDate,
+    deliveryDate: api.dueDate || "",
+    status: api.status,
+    notes: api.notes,
+    items: (api.items || []).map(item => ({
+      id: item.id,
+      productId: item.productId,
+      productCode: item.product?.productCode,
+      productName: item.product?.productName,
+      orderQty: item.orderQty,
+      notes: item.notes,
+    })),
+  };
 }
 
 async function fetchSalesOrders(): Promise<SalesOrder[]> {
   const res = await fetch("/api/sales-orders");
   if (!res.ok) throw new Error("Failed to fetch sales orders");
-  return res.json();
+  const data: ApiSalesOrder[] = await res.json();
+  return data.map(mapApiToSalesOrder);
 }
 
 async function createSalesOrder(data: Partial<SalesOrder>): Promise<SalesOrder> {
@@ -128,15 +184,16 @@ export default function SalesOrdersPage() {
       return;
     }
 
-    const headers = ["수주번호", "고객명", "주문일", "납기일", "품목수", "금액", "상태"];
+    const headers = ["수주번호", "사업부", "담당자", "프로젝트", "수주일", "납기일", "상태", "비고"];
     const rows = filteredOrders.map((order) => [
       order.orderNumber,
-      order.customerName,
+      order.division,
+      order.manager,
+      order.project,
       new Date(order.orderDate).toLocaleDateString("ko-KR"),
-      new Date(order.deliveryDate).toLocaleDateString("ko-KR"),
-      order.items.length,
-      order.totalAmount,
+      order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString("ko-KR") : "",
       statusLabels[order.status] || order.status,
+      order.notes || "",
     ]);
 
     const csvContent = [
@@ -259,9 +316,12 @@ export default function SalesOrdersPage() {
   };
 
   const filteredOrders = orders?.filter((order) => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+      order.orderNumber.toLowerCase().includes(searchLower) ||
+      order.division.toLowerCase().includes(searchLower) ||
+      order.manager.toLowerCase().includes(searchLower) ||
+      order.project.toLowerCase().includes(searchLower);
     const matchesStatus = filterStatus === "all" || order.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -333,7 +393,7 @@ export default function SalesOrdersPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
             <input
               type="text"
-              placeholder="수주번호 또는 고객명으로 검색..."
+              placeholder="수주번호, 사업부, 담당자, 프로젝트로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input input-with-icon w-full"
@@ -402,11 +462,12 @@ export default function SalesOrdersPage() {
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
                 <th className="table-header">수주번호</th>
-                <th className="table-header">고객명</th>
-                <th className="table-header">주문일</th>
+                <th className="table-header">사업부</th>
+                <th className="table-header">담당자</th>
+                <th className="table-header">프로젝트</th>
+                <th className="table-header">제품</th>
+                <th className="table-header">수주일</th>
                 <th className="table-header">납기일</th>
-                <th className="table-header">품목수</th>
-                <th className="table-header text-right">금액</th>
                 <th className="table-header">상태</th>
                 <th className="table-header text-center">작업</th>
               </tr>
@@ -414,7 +475,7 @@ export default function SalesOrdersPage() {
             <tbody>
               {filteredOrders?.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-cell text-center py-8">
+                  <td colSpan={9} className="table-cell text-center py-8">
                     <ClipboardList className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 수주가 없습니다."}
@@ -436,14 +497,33 @@ export default function SalesOrdersPage() {
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
                     <td className="table-cell font-medium">
-                      <button
-                        onClick={() => handleEdit(order)}
+                      <Link
+                        href={`/sales-orders/${order.id}`}
                         className="text-[var(--primary)] hover:underline cursor-pointer"
                       >
                         {order.orderNumber}
-                      </button>
+                      </Link>
                     </td>
-                    <td className="table-cell">{order.customerName}</td>
+                    <td className="table-cell">{order.division || "-"}</td>
+                    <td className="table-cell">{order.manager || "-"}</td>
+                    <td className="table-cell">{order.project || "-"}</td>
+                    <td className="table-cell">
+                      {order.items.length > 0 ? (
+                        <div className="text-sm">
+                          {order.items.slice(0, 2).map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <span className="font-medium">{item.productCode || item.productName || `제품${item.productId}`}</span>
+                              <span className="text-[var(--text-muted)]">x{item.orderQty}</span>
+                            </div>
+                          ))}
+                          {order.items.length > 2 && (
+                            <span className="text-xs text-[var(--text-muted)]">외 {order.items.length - 2}개</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">-</span>
+                      )}
+                    </td>
                     <td className="table-cell">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
@@ -451,11 +531,7 @@ export default function SalesOrdersPage() {
                       </span>
                     </td>
                     <td className="table-cell">
-                      {new Date(order.deliveryDate).toLocaleDateString("ko-KR")}
-                    </td>
-                    <td className="table-cell">{order.items.length}개</td>
-                    <td className="table-cell text-right font-medium tabular-nums">
-                      ₩{order.totalAmount.toLocaleString()}
+                      {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString("ko-KR") : "-"}
                     </td>
                     <td className="table-cell">
                       <span className={`badge ${statusColors[order.status] || "badge-secondary"}`}>
@@ -464,13 +540,6 @@ export default function SalesOrdersPage() {
                     </td>
                     <td className="table-cell text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          className="table-action-btn edit"
-                          title="상세보기"
-                          aria-label={`${order.orderNumber} 상세보기`}
-                        >
-                          <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
                         <button
                           onClick={() => handleEdit(order)}
                           className="table-action-btn edit"

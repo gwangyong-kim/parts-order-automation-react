@@ -11,6 +11,7 @@ interface WarehouseMapProps {
   onLocationClick?: (locationCode: string) => void;
   showPartCounts?: boolean;
   className?: string;
+  fullHeight?: boolean;
 }
 
 export default function WarehouseMap({
@@ -19,6 +20,7 @@ export default function WarehouseMap({
   onLocationClick,
   showPartCounts = true,
   className = "",
+  fullHeight = false,
 }: WarehouseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -140,7 +142,7 @@ export default function WarehouseMap({
       {/* Map Container */}
       <div
         ref={containerRef}
-        className="w-full h-[500px] cursor-grab active:cursor-grabbing"
+        className={`w-full cursor-grab active:cursor-grabbing ${fullHeight ? "h-full" : "h-[500px]"}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

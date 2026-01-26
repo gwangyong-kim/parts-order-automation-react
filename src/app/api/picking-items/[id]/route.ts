@@ -32,6 +32,14 @@ export async function PUT(request: Request, { params }: Params) {
       updateData.notes = body.notes || "Skipped";
     }
 
+    // Handle flag action (report issue)
+    if (body.action === "flag") {
+      updateData.status = "SKIPPED";
+      const flagType = body.flagType || "other";
+      const flagNotes = body.notes || "";
+      updateData.notes = `[FLAGGED: ${flagType}] ${flagNotes}`.trim();
+    }
+
     // Direct status update
     if (body.status !== undefined) updateData.status = body.status;
     if (body.pickedQty !== undefined) updateData.pickedQty = body.pickedQty;
