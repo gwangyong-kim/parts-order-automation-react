@@ -21,6 +21,7 @@ model User {
   role         String    @default("USER")
   department   String?
   theme        String    @default("glassmorphism")
+  profileImage String?   @map("profile_image")
   isActive     Boolean   @default(true) @map("is_active")
   lastLogin    DateTime? @map("last_login")
   createdAt    DateTime  @default(now()) @map("created_at")

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Image from "next/image";
 import {
   User,
   Bell,
@@ -21,9 +22,13 @@ import {
   Clock,
   FileDown,
   Loader2,
+  Camera,
+  X,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Modal from "@/components/ui/Modal";
 
 interface SettingsSection {
   id: string;
@@ -80,6 +85,31 @@ export default function SettingsPage() {
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [cleanupDays, setCleanupDays] = useState(30);
+
+  // 비밀번호 변경 상태
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // 프로필 이미지 상태
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 외부 연동 상태
+  const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState(false);
+  const [showSlackModal, setShowSlackModal] = useState(false);
+  const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
+    spreadsheetId: "",
+    sheetName: "",
+    isConnected: false,
+  });
+  const [slackConfig, setSlackConfig] = useState({
+    webhookUrl: "",
+    channel: "",
+    isConnected: false,
+  });
 
   // 백업 목록 조회
   const { data: backupData, isLoading: backupsLoading } = useQuery({
@@ -198,6 +228,154 @@ export default function SettingsPage() {
     toast.info("설정이 저장되었습니다.");
   };
 
+  // 비밀번호 변경 처리
+  const handleChangePassword = async () => {
+    // 유효성 검사
+    if (!currentPassword) {
+      toast.error("현재 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (!newPassword) {
+      toast.error("새 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (newPassword.length < 4) {
+      toast.error("새 비밀번호는 최소 4자 이상이어야 합니다.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("새 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/users/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "비밀번호 변경에 실패했습니다.");
+      }
+
+      toast.success("비밀번호가 변경되었습니다.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "비밀번호 변경에 실패했습니다.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // 프로필 이미지 업로드 처리
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 파일 타입 검증
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("지원하지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP만 허용)");
+      return;
+    }
+
+    // 파일 크기 검증 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("파일 크기는 5MB를 초과할 수 없습니다.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/users/profile-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "이미지 업로드에 실패했습니다.");
+      }
+
+      setProfileImage(data.profileImage);
+      toast.success("프로필 이미지가 변경되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // 프로필 이미지 삭제 처리
+  const handleImageDelete = async () => {
+    if (!profileImage) return;
+
+    setIsUploadingImage(true);
+    try {
+      const res = await fetch("/api/users/profile-image", {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("이미지 삭제에 실패했습니다.");
+      }
+
+      setProfileImage(null);
+      toast.success("프로필 이미지가 삭제되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "이미지 삭제에 실패했습니다.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  // Google Sheets 연결 저장
+  const handleSaveGoogleSheets = () => {
+    if (!googleSheetsConfig.spreadsheetId || !googleSheetsConfig.sheetName) {
+      toast.error("스프레드시트 ID와 시트 이름을 입력해주세요.");
+      return;
+    }
+    setGoogleSheetsConfig((prev) => ({ ...prev, isConnected: true }));
+    setShowGoogleSheetsModal(false);
+    toast.success("Google Sheets 연동 설정이 저장되었습니다.");
+  };
+
+  // Google Sheets 연결 해제
+  const handleDisconnectGoogleSheets = () => {
+    setGoogleSheetsConfig({ spreadsheetId: "", sheetName: "", isConnected: false });
+    toast.info("Google Sheets 연동이 해제되었습니다.");
+  };
+
+  // Slack 연결 저장
+  const handleSaveSlack = () => {
+    if (!slackConfig.webhookUrl) {
+      toast.error("Webhook URL을 입력해주세요.");
+      return;
+    }
+    setSlackConfig((prev) => ({ ...prev, isConnected: true }));
+    setShowSlackModal(false);
+    toast.success("Slack 연동 설정이 저장되었습니다.");
+  };
+
+  // Slack 연결 해제
+  const handleDisconnectSlack = () => {
+    setSlackConfig({ webhookUrl: "", channel: "", isConnected: false });
+    toast.info("Slack 연동이 해제되었습니다.");
+  };
+
   const handleExportData = async () => {
     try {
       window.open("/api/database/export?format=download", "_blank");
@@ -260,13 +438,53 @@ export default function SettingsPage() {
               </h2>
               <div className="space-y-6">
                 <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 bg-[var(--primary)]/10 rounded-full flex items-center justify-center">
-                    <span className="text-2xl font-bold text-[var(--primary)]">
-                      {session?.user?.name?.charAt(0) || "U"}
-                    </span>
+                  <div className="relative">
+                    <div className="w-20 h-20 bg-[var(--primary)]/10 rounded-full flex items-center justify-center overflow-hidden">
+                      {profileImage ? (
+                        <Image
+                          src={profileImage}
+                          alt="프로필 이미지"
+                          width={80}
+                          height={80}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl font-bold text-[var(--primary)]">
+                          {session?.user?.name?.charAt(0) || "U"}
+                        </span>
+                      )}
+                    </div>
+                    {isUploadingImage && (
+                      <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <button className="btn-secondary">프로필 사진 변경</button>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <Camera className="w-4 h-4" />
+                      사진 변경
+                    </button>
+                    {profileImage && (
+                      <button
+                        onClick={handleImageDelete}
+                        disabled={isUploadingImage}
+                        className="text-sm text-[var(--danger)] hover:underline"
+                      >
+                        사진 삭제
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -399,21 +617,48 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                         현재 비밀번호
                       </label>
-                      <input type="password" className="input w-full" />
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="현재 비밀번호 입력"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                         새 비밀번호
                       </label>
-                      <input type="password" className="input w-full" />
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="새 비밀번호 입력 (최소 4자)"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
                         새 비밀번호 확인
                       </label>
-                      <input type="password" className="input w-full" />
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="새 비밀번호 다시 입력"
+                      />
                     </div>
-                    <button className="btn-primary">비밀번호 변경</button>
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={isChangingPassword}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      {isChangingPassword && (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      )}
+                      비밀번호 변경
+                    </button>
                   </div>
                 </div>
               </div>
@@ -427,33 +672,83 @@ export default function SettingsPage() {
                 외부 연동
               </h2>
               <div className="space-y-4">
-                <div className="p-4 rounded-lg border border-[var(--glass-border)]">
+                {/* Google Sheets */}
+                <div className={`p-4 rounded-lg border ${googleSheetsConfig.isConnected ? "border-[var(--success)] bg-[var(--success)]/5" : "border-[var(--glass-border)]"}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-[#4285F4]/10 rounded-lg flex items-center justify-center">
                         <span className="text-lg font-bold text-[#4285F4]">G</span>
                       </div>
                       <div>
-                        <p className="font-medium text-[var(--text-primary)]">Google Sheets</p>
-                        <p className="text-sm text-[var(--text-muted)]">발주 데이터 자동 동기화</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-[var(--text-primary)]">Google Sheets</p>
+                          {googleSheetsConfig.isConnected && (
+                            <span className="badge badge-success text-xs">연결됨</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-[var(--text-muted)]">
+                          {googleSheetsConfig.isConnected
+                            ? `시트: ${googleSheetsConfig.sheetName}`
+                            : "발주 데이터 자동 동기화"}
+                        </p>
                       </div>
                     </div>
-                    <button className="btn-secondary">연결</button>
+                    <div className="flex items-center gap-2">
+                      {googleSheetsConfig.isConnected && (
+                        <button
+                          onClick={handleDisconnectGoogleSheets}
+                          className="text-sm text-[var(--danger)] hover:underline"
+                        >
+                          연결 해제
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowGoogleSheetsModal(true)}
+                        className="btn-secondary"
+                      >
+                        {googleSheetsConfig.isConnected ? "설정" : "연결"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-lg border border-[var(--glass-border)]">
+                {/* Slack */}
+                <div className={`p-4 rounded-lg border ${slackConfig.isConnected ? "border-[var(--success)] bg-[var(--success)]/5" : "border-[var(--glass-border)]"}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-[#4A154B]/10 rounded-lg flex items-center justify-center">
                         <span className="text-lg font-bold text-[#4A154B]">S</span>
                       </div>
                       <div>
-                        <p className="font-medium text-[var(--text-primary)]">Slack</p>
-                        <p className="text-sm text-[var(--text-muted)]">알림 메시지 전송</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-[var(--text-primary)]">Slack</p>
+                          {slackConfig.isConnected && (
+                            <span className="badge badge-success text-xs">연결됨</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-[var(--text-muted)]">
+                          {slackConfig.isConnected && slackConfig.channel
+                            ? `채널: ${slackConfig.channel}`
+                            : "알림 메시지 전송"}
+                        </p>
                       </div>
                     </div>
-                    <button className="btn-secondary">연결</button>
+                    <div className="flex items-center gap-2">
+                      {slackConfig.isConnected && (
+                        <button
+                          onClick={handleDisconnectSlack}
+                          className="text-sm text-[var(--danger)] hover:underline"
+                        >
+                          연결 해제
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowSlackModal(true)}
+                        className="btn-secondary"
+                      >
+                        {slackConfig.isConnected ? "설정" : "연결"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -724,6 +1019,146 @@ export default function SettingsPage() {
         variant="warning"
         isLoading={cleanupMutation.isPending}
       />
+
+      {/* Google Sheets 연동 모달 */}
+      <Modal
+        isOpen={showGoogleSheetsModal}
+        onClose={() => setShowGoogleSheetsModal(false)}
+        title="Google Sheets 연동"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-[var(--info)]/10 text-sm">
+            <p className="text-[var(--text-primary)]">
+              Google Sheets와 연동하면 발주 데이터를 자동으로 동기화할 수 있습니다.
+            </p>
+            <a
+              href="https://developers.google.com/sheets/api/quickstart/js"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--primary)] hover:underline mt-2"
+            >
+              API 설정 가이드
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+              스프레드시트 ID
+            </label>
+            <input
+              type="text"
+              value={googleSheetsConfig.spreadsheetId}
+              onChange={(e) =>
+                setGoogleSheetsConfig((prev) => ({ ...prev, spreadsheetId: e.target.value }))
+              }
+              className="input w-full"
+              placeholder="예: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+            />
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              URL에서 /d/ 다음에 있는 값입니다.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+              시트 이름
+            </label>
+            <input
+              type="text"
+              value={googleSheetsConfig.sheetName}
+              onChange={(e) =>
+                setGoogleSheetsConfig((prev) => ({ ...prev, sheetName: e.target.value }))
+              }
+              className="input w-full"
+              placeholder="예: 발주목록"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--glass-border)]">
+            <button
+              onClick={() => setShowGoogleSheetsModal(false)}
+              className="btn-secondary"
+            >
+              취소
+            </button>
+            <button onClick={handleSaveGoogleSheets} className="btn-primary">
+              저장
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Slack 연동 모달 */}
+      <Modal
+        isOpen={showSlackModal}
+        onClose={() => setShowSlackModal(false)}
+        title="Slack 연동"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-[var(--info)]/10 text-sm">
+            <p className="text-[var(--text-primary)]">
+              Slack Webhook을 설정하면 중요 알림을 Slack 채널로 전송할 수 있습니다.
+            </p>
+            <a
+              href="https://api.slack.com/messaging/webhooks"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[var(--primary)] hover:underline mt-2"
+            >
+              Webhook 생성 가이드
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+              Webhook URL
+            </label>
+            <input
+              type="text"
+              value={slackConfig.webhookUrl}
+              onChange={(e) =>
+                setSlackConfig((prev) => ({ ...prev, webhookUrl: e.target.value }))
+              }
+              className="input w-full"
+              placeholder="https://hooks.slack.com/services/..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+              채널 이름 (선택)
+            </label>
+            <input
+              type="text"
+              value={slackConfig.channel}
+              onChange={(e) =>
+                setSlackConfig((prev) => ({ ...prev, channel: e.target.value }))
+              }
+              className="input w-full"
+              placeholder="예: #inventory-alerts"
+            />
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              기본 채널 대신 다른 채널로 전송하려면 입력하세요.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--glass-border)]">
+            <button
+              onClick={() => setShowSlackModal(false)}
+              className="btn-secondary"
+            >
+              취소
+            </button>
+            <button onClick={handleSaveSlack} className="btn-primary">
+              저장
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -425,7 +425,7 @@ export default function MrpPage() {
                     <td className="table-cell">
                       <div>
                         <Link
-                          href="/parts"
+                          href={`/parts/${result.part?.id}`}
                           className="font-medium text-[var(--primary)] hover:underline"
                         >
                           {result.part?.partNumber ?? result.part?.partCode ?? "-"}

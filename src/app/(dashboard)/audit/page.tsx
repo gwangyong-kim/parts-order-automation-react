@@ -210,6 +210,42 @@ export default function AuditPage() {
     }
   };
 
+  // 내보내기 기능
+  const handleExport = () => {
+    if (!filteredAudits || filteredAudits.length === 0) {
+      toast.error("내보낼 데이터가 없습니다.");
+      return;
+    }
+
+    const headers = ["실사코드", "유형", "실사일", "상태", "총 품목", "일치", "불일치", "담당자", "완료일"];
+    const rows = filteredAudits.map((audit) => [
+      audit.auditCode,
+      auditTypeLabels[audit.auditType] || audit.auditType,
+      new Date(audit.auditDate).toLocaleDateString("ko-KR"),
+      statusLabels[audit.status] || audit.status,
+      audit.totalItems,
+      audit.matchedItems,
+      audit.discrepancyItems,
+      audit.createdBy?.name || "",
+      audit.completedAt ? new Date(audit.completedAt).toLocaleDateString("ko-KR") : "",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `audit_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("파일이 다운로드되었습니다.");
+  };
+
   const filteredAudits = audits?.filter((audit) => {
     const matchesSearch = audit.auditCode.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === "ALL" || audit.auditType === typeFilter;
@@ -326,7 +362,7 @@ export default function AuditPage() {
               <option value="YEARLY">연간 실사</option>
               <option value="SPOT">비정기 실사</option>
             </select>
-            <button className="btn-secondary flex items-center gap-2">
+            <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
               <Download className="w-4 h-4" />
               내보내기
             </button>
