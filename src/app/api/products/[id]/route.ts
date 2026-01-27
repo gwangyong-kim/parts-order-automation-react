@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -20,16 +21,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      throw notFound("제품");
     }
 
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Failed to fetch product:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch product" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -93,11 +90,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Failed to update product:", error);
-    return NextResponse.json(
-      { error: "Failed to update product" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -111,12 +104,8 @@ export async function DELETE(request: Request, { params }: Params) {
       data: { isActive: false },
     });
 
-    return NextResponse.json({ message: "Product deleted successfully" });
+    return deletedResponse("제품이 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete product:", error);
-    return NextResponse.json(
-      { error: "Failed to delete product" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

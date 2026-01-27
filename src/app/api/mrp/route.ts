@@ -11,8 +11,16 @@ export async function GET() {
             partCode: true,
             partName: true,
             unit: true,
+            unitPrice: true,
             leadTimeDays: true,
             safetyStock: true,
+            supplierId: true,
+            supplier: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         salesOrder: {
@@ -31,12 +39,17 @@ export async function GET() {
     // Transform to match frontend expectations
     const transformedResults = results.map((result) => ({
       id: result.id,
+      partId: result.partId,
       part: result.part ? {
         id: result.part.id,
+        partCode: result.part.partCode,
         partNumber: result.part.partCode,
         partName: result.part.partName,
         unit: result.part.unit,
+        unitPrice: result.part.unitPrice,
         leadTime: result.part.leadTimeDays,
+        supplierId: result.part.supplierId,
+        supplier: result.part.supplier,
       } : null,
       salesOrderId: result.salesOrderId,
       totalRequirement: result.grossRequirement,

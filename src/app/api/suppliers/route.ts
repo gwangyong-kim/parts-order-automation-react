@@ -1,15 +1,33 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-error";
+import { handleApiError, badRequest, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const suppliers = await prisma.supplier.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: "desc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
 
-    return NextResponse.json(suppliers);
+    const [suppliers, total] = await Promise.all([
+      prisma.supplier.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.supplier.count({ where: { isActive: true } }),
+    ]);
+
+    return NextResponse.json({
+      data: suppliers,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
     return handleApiError(error);
   }
@@ -20,10 +38,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     if (!body.code || !body.name) {
-      return NextResponse.json(
-        { error: "업체코드와 업체명은 필수입니다." },
-        { status: 400 }
-      );
+      throw badRequest("업체코드와 업체명은 필수입니다.");
     }
 
     // 코드 중복 체크
@@ -32,10 +47,7 @@ export async function POST(request: Request) {
     });
 
     if (existing) {
-      return NextResponse.json(
-        { error: "이미 존재하는 업체코드입니다." },
-        { status: 400 }
-      );
+      throw badRequest("이미 존재하는 업체코드입니다.");
     }
 
     const supplier = await prisma.supplier.create({
@@ -52,7 +64,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(supplier, { status: 201 });
+    return createdResponse(supplier);
   } catch (error) {
     return handleApiError(error);
   }

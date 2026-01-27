@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -20,16 +21,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!audit) {
-      return NextResponse.json({ error: "Audit not found" }, { status: 404 });
+      throw notFound("실사 기록");
     }
 
     return NextResponse.json(audit);
   } catch (error) {
-    console.error("Failed to fetch audit:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch audit" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -137,11 +134,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(audit);
   } catch (error) {
-    console.error("Failed to update audit:", error);
-    return NextResponse.json(
-      { error: "Failed to update audit" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -158,12 +151,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ success: true });
+    return deletedResponse("실사 기록이 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete audit:", error);
-    return NextResponse.json(
-      { error: "Failed to delete audit" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

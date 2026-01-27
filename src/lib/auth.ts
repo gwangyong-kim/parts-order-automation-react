@@ -83,7 +83,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     maxAge: 24 * 60 * 60, // 24 hours
   },
   trustHost: true,
-  secret: process.env.AUTH_SECRET || "partsync-secret-key-for-production-change-this",
+  secret: (() => {
+    if (!process.env.AUTH_SECRET) {
+      throw new Error('AUTH_SECRET 환경변수가 설정되지 않았습니다.');
+    }
+    return process.env.AUTH_SECRET;
+  })(),
 });
 
 // Type augmentation for next-auth

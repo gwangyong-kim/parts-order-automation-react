@@ -33,6 +33,8 @@ RUN npx prisma generate
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Build-time dummy secret (overridden at runtime)
+ENV AUTH_SECRET=build-time-placeholder-secret
 
 RUN npm run build
 

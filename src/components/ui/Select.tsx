@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
@@ -18,7 +18,9 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, placeholder, className, id, ...props }, ref) => {
-    const selectId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = useId();
+    const selectId = id || generatedId;
+    const errorId = `${selectId}-error`;
 
     return (
       <div className="space-y-1.5">
@@ -35,6 +37,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
+            aria-invalid={error ? "true" : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               "input w-full appearance-none pr-10",
               error && "border-[var(--danger)] focus:ring-[var(--danger)]",
@@ -54,7 +58,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
         </div>
         {error && (
-          <p className="text-sm text-[var(--danger)]">{error}</p>
+          <p id={errorId} role="alert" className="text-sm text-[var(--danger)]">{error}</p>
         )}
       </div>
     );

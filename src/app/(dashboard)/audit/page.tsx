@@ -62,9 +62,10 @@ const auditTypeColors: Record<string, string> = {
 };
 
 async function fetchAudits(): Promise<AuditRecord[]> {
-  const res = await fetch("/api/audit");
+  const res = await fetch("/api/audit?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch audits");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function createAudit(data: Partial<AuditRecord>): Promise<AuditRecord> {
@@ -336,7 +337,7 @@ export default function AuditPage() {
       {/* Audits Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
                 <th className="table-header">실사코드</th>

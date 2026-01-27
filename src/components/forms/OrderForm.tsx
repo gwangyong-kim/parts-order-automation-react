@@ -1,11 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import Modal, { ModalFooter } from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
+import { Spinner } from "@/components/ui/Spinner";
+
+// Zod 스키마 정의
+const orderFormSchema = z.object({
+  orderNumber: z.string().min(1, "발주번호를 입력해주세요."),
+  supplierId: z.number().min(1, "공급업체를 선택해주세요."),
+  orderDate: z.string().min(1, "발주일을 선택해주세요."),
+  expectedDate: z.string().nullable().optional(),
+  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "ORDERED", "RECEIVED", "CANCELLED"]),
+  totalAmount: z.number().min(0),
+  notes: z.string().nullable().optional(),
+});
+
+type OrderFormData = z.infer<typeof orderFormSchema>;
 
 interface Order {
   id?: number;
@@ -33,9 +50,10 @@ interface OrderFormProps {
 }
 
 async function fetchSuppliers(): Promise<Supplier[]> {
-  const res = await fetch("/api/suppliers");
+  const res = await fetch("/api/suppliers?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch suppliers");
-  return res.json();
+  const result = await res.json();
+  return result.data || [];
 }
 
 const statusOptions = [
@@ -54,17 +72,25 @@ export default function OrderForm({
   initialData,
   isLoading = false,
 }: OrderFormProps) {
-  const [formData, setFormData] = useState<Partial<Order>>({
-    orderNumber: "",
-    supplierId: 0,
-    orderDate: new Date().toISOString().split("T")[0],
-    expectedDate: "",
-    status: "DRAFT",
-    totalAmount: 0,
-    notes: "",
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<OrderFormData>({
+    resolver: zodResolver(orderFormSchema),
+    defaultValues: {
+      orderNumber: "",
+      supplierId: 0,
+      orderDate: new Date().toISOString().split("T")[0],
+      expectedDate: "",
+      status: "DRAFT",
+      totalAmount: 0,
+      notes: "",
+    },
   });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers"],
@@ -73,69 +99,35 @@ export default function OrderForm({
   });
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        orderNumber: initialData.orderNumber,
-        supplierId: initialData.supplierId,
-        orderDate: new Date(initialData.orderDate).toISOString().split("T")[0],
-        expectedDate: initialData.expectedDate
-          ? new Date(initialData.expectedDate).toISOString().split("T")[0]
-          : "",
-        status: initialData.status,
-        totalAmount: initialData.totalAmount,
-        notes: initialData.notes || "",
-      });
-    } else {
-      setFormData({
-        orderNumber: "",
-        supplierId: 0,
-        orderDate: new Date().toISOString().split("T")[0],
-        expectedDate: "",
-        status: "DRAFT",
-        totalAmount: 0,
-        notes: "",
-      });
+    if (isOpen) {
+      if (initialData) {
+        reset({
+          orderNumber: initialData.orderNumber,
+          supplierId: initialData.supplierId,
+          orderDate: new Date(initialData.orderDate).toISOString().split("T")[0],
+          expectedDate: initialData.expectedDate
+            ? new Date(initialData.expectedDate).toISOString().split("T")[0]
+            : "",
+          status: initialData.status as OrderFormData["status"],
+          totalAmount: initialData.totalAmount,
+          notes: initialData.notes || "",
+        });
+      } else {
+        reset({
+          orderNumber: "",
+          supplierId: 0,
+          orderDate: new Date().toISOString().split("T")[0],
+          expectedDate: "",
+          status: "DRAFT",
+          totalAmount: 0,
+          notes: "",
+        });
+      }
     }
-    setErrors({});
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, reset]);
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.orderNumber?.trim()) {
-      newErrors.orderNumber = "발주번호를 입력해주세요.";
-    }
-    if (!formData.supplierId || formData.supplierId === 0) {
-      newErrors.supplierId = "공급업체를 선택해주세요.";
-    }
-    if (!formData.orderDate) {
-      newErrors.orderDate = "발주일을 선택해주세요.";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validate()) {
-      onSubmit(formData);
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]:
-        name === "totalAmount"
-          ? parseFloat(value) || 0
-          : name === "supplierId"
-          ? parseInt(value) || 0
-          : value,
-    }));
+  const onFormSubmit = (data: OrderFormData) => {
+    onSubmit(data);
   };
 
   const supplierOptions =
@@ -151,64 +143,51 @@ export default function OrderForm({
       title={initialData ? "발주 수정" : "발주 등록"}
       size="lg"
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onFormSubmit)}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="발주번호"
-            name="orderNumber"
-            value={formData.orderNumber}
-            onChange={handleChange}
-            error={errors.orderNumber}
+            {...register("orderNumber")}
+            error={errors.orderNumber?.message}
             required
             placeholder="예: PO-2024-001"
           />
           <Select
             label="공급업체"
-            name="supplierId"
-            value={formData.supplierId?.toString()}
-            onChange={handleChange}
+            value={watch("supplierId")?.toString()}
+            onChange={(e) => setValue("supplierId", parseInt(e.target.value) || 0)}
             options={supplierOptions}
             placeholder="공급업체 선택"
-            error={errors.supplierId}
+            error={errors.supplierId?.message}
             required
           />
           <Input
             label="발주일"
-            name="orderDate"
             type="date"
-            value={formData.orderDate}
-            onChange={handleChange}
-            error={errors.orderDate}
+            {...register("orderDate")}
+            error={errors.orderDate?.message}
             required
           />
           <Input
             label="입고예정일"
-            name="expectedDate"
             type="date"
-            value={formData.expectedDate || ""}
-            onChange={handleChange}
+            {...register("expectedDate")}
           />
           <Select
             label="상태"
-            name="status"
-            value={formData.status}
-            onChange={handleChange}
+            {...register("status")}
             options={statusOptions}
           />
           <Input
             label="총 금액"
-            name="totalAmount"
             type="number"
-            value={formData.totalAmount?.toString()}
-            onChange={handleChange}
+            {...register("totalAmount", { valueAsNumber: true })}
             placeholder="0"
           />
           <div className="md:col-span-2">
             <Textarea
               label="비고"
-              name="notes"
-              value={formData.notes || ""}
-              onChange={handleChange}
+              {...register("notes")}
               placeholder="추가 메모 사항"
               rows={2}
             />
@@ -227,22 +206,7 @@ export default function OrderForm({
           <button type="submit" className="btn-primary" disabled={isLoading}>
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
+                <Spinner size="sm" />
                 저장 중...
               </span>
             ) : initialData ? (

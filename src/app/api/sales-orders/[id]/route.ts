@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -39,7 +40,7 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!salesOrder) {
-      return NextResponse.json({ error: "Sales order not found" }, { status: 404 });
+      throw notFound("수주");
     }
 
     // Calculate material requirements for this sales order
@@ -106,11 +107,7 @@ export async function GET(request: Request, { params }: Params) {
       materialRequirements: materials,
     });
   } catch (error) {
-    console.error("Failed to fetch sales order:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch sales order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -166,11 +163,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(salesOrder);
   } catch (error) {
-    console.error("Failed to update sales order:", error);
-    return NextResponse.json(
-      { error: "Failed to update sales order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -187,12 +180,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ message: "Sales order deleted successfully" });
+    return deletedResponse("수주가 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete sales order:", error);
-    return NextResponse.json(
-      { error: "Failed to delete sales order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

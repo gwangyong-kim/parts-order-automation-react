@@ -288,7 +288,7 @@ export default function ProductDetailPage({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-bordered">
                 <thead>
                   <tr className="border-b border-[var(--glass-border)]">
                     <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
@@ -394,7 +394,7 @@ export default function ProductDetailPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-bordered">
               <thead>
                 <tr className="border-b border-[var(--glass-border)]">
                   <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">

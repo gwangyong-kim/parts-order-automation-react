@@ -261,7 +261,7 @@ export default function CategoriesPage() {
       {/* Categories Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
                 <th className="table-header">코드</th>

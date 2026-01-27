@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-error";
+import { handleApiError, notFound, badRequest, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -19,10 +19,7 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!category) {
-      return NextResponse.json(
-        { error: "카테고리를 찾을 수 없습니다." },
-        { status: 404 }
-      );
+      throw notFound("카테고리");
     }
 
     return NextResponse.json(category);
@@ -37,10 +34,7 @@ export async function PUT(request: Request, { params }: Params) {
     const body = await request.json();
 
     if (!body.name) {
-      return NextResponse.json(
-        { error: "이름은 필수입니다." },
-        { status: 400 }
-      );
+      throw badRequest("이름은 필수입니다.");
     }
 
     // 코드 중복 체크 (자기 자신 제외)
@@ -53,10 +47,7 @@ export async function PUT(request: Request, { params }: Params) {
       });
 
       if (existing) {
-        return NextResponse.json(
-          { error: "이미 존재하는 코드입니다." },
-          { status: 400 }
-        );
+        throw badRequest("이미 존재하는 코드입니다.");
       }
     }
 
@@ -87,10 +78,7 @@ export async function DELETE(request: Request, { params }: Params) {
     });
 
     if (partsCount > 0) {
-      return NextResponse.json(
-        { error: `이 카테고리를 사용 중인 파츠가 ${partsCount}개 있습니다. 먼저 파츠의 카테고리를 변경해주세요.` },
-        { status: 400 }
-      );
+      throw badRequest(`이 카테고리를 사용 중인 파츠가 ${partsCount}개 있습니다. 먼저 파츠의 카테고리를 변경해주세요.`);
     }
 
     // 하위 카테고리 확인
@@ -99,17 +87,14 @@ export async function DELETE(request: Request, { params }: Params) {
     });
 
     if (childrenCount > 0) {
-      return NextResponse.json(
-        { error: `하위 카테고리가 ${childrenCount}개 있습니다. 먼저 하위 카테고리를 삭제해주세요.` },
-        { status: 400 }
-      );
+      throw badRequest(`하위 카테고리가 ${childrenCount}개 있습니다. 먼저 하위 카테고리를 삭제해주세요.`);
     }
 
     await prisma.category.delete({
       where: { id: categoryId },
     });
 
-    return NextResponse.json({ message: "삭제되었습니다." });
+    return deletedResponse("카테고리가 삭제되었습니다.");
   } catch (error) {
     return handleApiError(error);
   }

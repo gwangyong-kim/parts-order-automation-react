@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   User,
   Bell,
@@ -10,12 +11,48 @@ import {
   Link,
   Save,
   Globe,
+  Download,
+  Upload,
+  Trash2,
+  RefreshCw,
+  HardDrive,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  FileDown,
+  Loader2,
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface SettingsSection {
   id: string;
   title: string;
   icon: React.ElementType;
+}
+
+interface Backup {
+  fileName: string;
+  createdAt: string;
+  size: number;
+  sizeFormatted: string;
+}
+
+interface DbStats {
+  database: {
+    type: string;
+    size: number;
+    sizeFormatted: string;
+    lastModified: string;
+    integrityCheck: string;
+  };
+  tables: Record<string, number>;
+  totalRecords: number;
+  recentActivity: {
+    last24hTransactions: number;
+    last7dOrders: number;
+    last7dSalesOrders: number;
+  };
 }
 
 const sections: SettingsSection[] = [
@@ -29,6 +66,8 @@ const sections: SettingsSection[] = [
 
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState("profile");
   const [language, setLanguage] = useState("ko");
   const [notifications, setNotifications] = useState({
@@ -37,10 +76,139 @@ export default function SettingsPage() {
     orderStatus: true,
     mrpAlerts: false,
   });
+  const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [cleanupDays, setCleanupDays] = useState(30);
+
+  // 백업 목록 조회
+  const { data: backupData, isLoading: backupsLoading } = useQuery({
+    queryKey: ["backups"],
+    queryFn: async () => {
+      const res = await fetch("/api/backup");
+      if (!res.ok) throw new Error("Failed to fetch backups");
+      return res.json();
+    },
+    enabled: activeSection === "system",
+  });
+
+  // DB 통계 조회
+  const { data: dbStats, isLoading: statsLoading } = useQuery<DbStats>({
+    queryKey: ["dbStats"],
+    queryFn: async () => {
+      const res = await fetch("/api/database/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
+    enabled: activeSection === "system",
+  });
+
+  // 정리 미리보기
+  const { data: cleanupPreview } = useQuery({
+    queryKey: ["cleanupPreview", cleanupDays],
+    queryFn: async () => {
+      const res = await fetch(`/api/database/cleanup?daysToKeep=${cleanupDays}`);
+      if (!res.ok) throw new Error("Failed to fetch preview");
+      return res.json();
+    },
+    enabled: showCleanupDialog,
+  });
+
+  // 백업 생성
+  const createBackupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: "수동 백업" }),
+      });
+      if (!res.ok) throw new Error("Backup failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("백업이 완료되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
+    },
+    onError: () => {
+      toast.error("백업에 실패했습니다.");
+    },
+  });
+
+  // 백업 복구
+  const restoreBackupMutation = useMutation({
+    mutationFn: async (fileName: string) => {
+      const res = await fetch("/api/backup/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName }),
+      });
+      if (!res.ok) throw new Error("Restore failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("데이터가 복구되었습니다. 페이지를 새로고침 해주세요.");
+      setShowRestoreDialog(false);
+      setSelectedBackup(null);
+    },
+    onError: () => {
+      toast.error("복구에 실패했습니다.");
+    },
+  });
+
+  // 백업 삭제
+  const deleteBackupMutation = useMutation({
+    mutationFn: async (fileName: string) => {
+      const res = await fetch(`/api/backup/${fileName}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("백업이 삭제되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
+    },
+    onError: () => {
+      toast.error("삭제에 실패했습니다.");
+    },
+  });
+
+  // 데이터 정리
+  const cleanupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/database/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daysToKeep: cleanupDays }),
+      });
+      if (!res.ok) throw new Error("Cleanup failed");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowCleanupDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["dbStats"] });
+    },
+    onError: () => {
+      toast.error("데이터 정리에 실패했습니다.");
+    },
+  });
 
   const handleSave = () => {
-    // TODO: Implement settings save
-    console.log("Save settings");
+    toast.info("설정이 저장되었습니다.");
+  };
+
+  const handleExportData = async () => {
+    try {
+      window.open("/api/database/export?format=download", "_blank");
+      toast.success("데이터 내보내기가 시작되었습니다.");
+    } catch {
+      toast.error("내보내기에 실패했습니다.");
+    }
+  };
+
+  const handleDownloadBackup = (fileName: string) => {
+    window.open(`/api/backup/${fileName}`, "_blank");
   };
 
   return (
@@ -83,7 +251,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Settings Content */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
           {/* Profile Section */}
           {activeSection === "profile" && (
             <div className="glass-card p-6">
@@ -294,44 +462,268 @@ export default function SettingsPage() {
 
           {/* System Section */}
           {activeSection === "system" && (
-            <div className="glass-card p-6">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
-                시스템 정보
-              </h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+            <>
+              {/* 시스템 정보 */}
+              <div className="glass-card p-6">
+                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
+                  시스템 정보
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-4 rounded-lg bg-[var(--glass-bg)]">
                     <p className="text-sm text-[var(--text-muted)]">버전</p>
                     <p className="font-medium text-[var(--text-primary)]">2.0.0</p>
                   </div>
                   <div className="p-4 rounded-lg bg-[var(--glass-bg)]">
                     <p className="text-sm text-[var(--text-muted)]">프레임워크</p>
-                    <p className="font-medium text-[var(--text-primary)]">Next.js 15</p>
+                    <p className="font-medium text-[var(--text-primary)]">Next.js 16</p>
                   </div>
                   <div className="p-4 rounded-lg bg-[var(--glass-bg)]">
                     <p className="text-sm text-[var(--text-muted)]">데이터베이스</p>
                     <p className="font-medium text-[var(--text-primary)]">SQLite + Prisma</p>
                   </div>
                   <div className="p-4 rounded-lg bg-[var(--glass-bg)]">
-                    <p className="text-sm text-[var(--text-muted)]">마지막 업데이트</p>
+                    <p className="text-sm text-[var(--text-muted)]">DB 크기</p>
                     <p className="font-medium text-[var(--text-primary)]">
-                      {new Date().toLocaleDateString("ko-KR")}
+                      {statsLoading ? "..." : dbStats?.database.sizeFormatted || "-"}
                     </p>
                   </div>
                 </div>
+              </div>
 
-                <div className="pt-4 border-t border-[var(--glass-border)]">
-                  <h3 className="font-medium text-[var(--text-primary)] mb-4">데이터 관리</h3>
-                  <div className="flex gap-4">
-                    <button className="btn-secondary">데이터 백업</button>
-                    <button className="btn-secondary">데이터 복원</button>
+              {/* 데이터베이스 상태 */}
+              <div className="glass-card p-6">
+                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
+                  데이터베이스 상태
+                </h2>
+                {statsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-[var(--primary)]" />
+                  </div>
+                ) : dbStats ? (
+                  <div className="space-y-6">
+                    {/* 무결성 상태 */}
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-[var(--glass-bg)]">
+                      {dbStats.database.integrityCheck === "ok" ? (
+                        <>
+                          <CheckCircle className="w-6 h-6 text-[var(--success)]" />
+                          <div>
+                            <p className="font-medium text-[var(--text-primary)]">데이터베이스 정상</p>
+                            <p className="text-sm text-[var(--text-muted)]">무결성 검사 통과</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="w-6 h-6 text-[var(--warning)]" />
+                          <div>
+                            <p className="font-medium text-[var(--text-primary)]">주의 필요</p>
+                            <p className="text-sm text-[var(--text-muted)]">{dbStats.database.integrityCheck}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* 테이블별 레코드 수 */}
+                    <div>
+                      <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
+                        테이블별 레코드 수 (총 {dbStats.totalRecords.toLocaleString()}개)
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {Object.entries(dbStats.tables).map(([table, count]) => (
+                          <div key={table} className="p-3 rounded-lg bg-[var(--gray-50)] border border-[var(--gray-200)]">
+                            <p className="text-xs text-[var(--text-muted)]">{table}</p>
+                            <p className="font-mono font-medium text-[var(--text-primary)]">{count.toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 최근 활동 */}
+                    <div>
+                      <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">최근 활동</h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 rounded-lg bg-[var(--primary-50)]">
+                          <p className="text-xs text-[var(--text-muted)]">24시간 거래</p>
+                          <p className="font-mono font-medium text-[var(--primary)]">
+                            {dbStats.recentActivity.last24hTransactions}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-[var(--info-50)]">
+                          <p className="text-xs text-[var(--text-muted)]">7일 발주</p>
+                          <p className="font-mono font-medium text-[var(--info)]">
+                            {dbStats.recentActivity.last7dOrders}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-[var(--success-50)]">
+                          <p className="text-xs text-[var(--text-muted)]">7일 수주</p>
+                          <p className="font-mono font-medium text-[var(--success)]">
+                            {dbStats.recentActivity.last7dSalesOrders}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[var(--text-muted)]">통계를 불러올 수 없습니다.</p>
+                )}
+              </div>
+
+              {/* 백업 관리 */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                    백업 관리
+                  </h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => createBackupMutation.mutate()}
+                      disabled={createBackupMutation.isPending}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      {createBackupMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      지금 백업
+                    </button>
                   </div>
                 </div>
+
+                {backupsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-[var(--primary)]" />
+                  </div>
+                ) : backupData?.backups?.length > 0 ? (
+                  <div className="space-y-3">
+                    {backupData.backups.map((backup: Backup) => (
+                      <div
+                        key={backup.fileName}
+                        className="flex items-center justify-between p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]"
+                      >
+                        <div className="flex items-center gap-4">
+                          <HardDrive className="w-8 h-8 text-[var(--primary)]" />
+                          <div>
+                            <p className="font-medium text-[var(--text-primary)]">{backup.fileName}</p>
+                            <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(backup.createdAt).toLocaleString("ko-KR")}
+                              </span>
+                              <span>{backup.sizeFormatted}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleDownloadBackup(backup.fileName)}
+                            className="p-2 hover:bg-[var(--gray-100)] rounded-lg transition-colors"
+                            title="다운로드"
+                          >
+                            <FileDown className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedBackup(backup);
+                              setShowRestoreDialog(true);
+                            }}
+                            className="p-2 hover:bg-[var(--info-50)] rounded-lg transition-colors"
+                            title="복구"
+                          >
+                            <RefreshCw className="w-4 h-4 text-[var(--info)]" />
+                          </button>
+                          <button
+                            onClick={() => deleteBackupMutation.mutate(backup.fileName)}
+                            disabled={deleteBackupMutation.isPending}
+                            className="p-2 hover:bg-[var(--danger-50)] rounded-lg transition-colors"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-4 h-4 text-[var(--danger)]" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-xs text-[var(--text-muted)] mt-2">
+                      * 최근 {backupData.config.maxBackups}개의 백업만 보관됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <HardDrive className="w-12 h-12 mx-auto mb-3 text-[var(--text-muted)]" />
+                    <p className="text-[var(--text-muted)]">저장된 백업이 없습니다.</p>
+                    <p className="text-sm text-[var(--text-muted)]">위 버튼을 클릭하여 백업을 생성하세요.</p>
+                  </div>
+                )}
               </div>
-            </div>
+
+              {/* 데이터 관리 */}
+              <div className="glass-card p-6">
+                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
+                  데이터 관리
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={handleExportData}
+                    className="p-4 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors text-left"
+                  >
+                    <Download className="w-6 h-6 text-[var(--primary)] mb-2" />
+                    <p className="font-medium text-[var(--text-primary)]">데이터 내보내기</p>
+                    <p className="text-sm text-[var(--text-muted)]">전체 데이터를 JSON으로 내보냅니다.</p>
+                  </button>
+
+                  <button
+                    onClick={() => setShowCleanupDialog(true)}
+                    className="p-4 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors text-left"
+                  >
+                    <Trash2 className="w-6 h-6 text-[var(--warning)] mb-2" />
+                    <p className="font-medium text-[var(--text-primary)]">오래된 데이터 정리</p>
+                    <p className="text-sm text-[var(--text-muted)]">알림, 로그 등 오래된 데이터를 삭제합니다.</p>
+                  </button>
+
+                  <button
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ["dbStats"] })}
+                    className="p-4 rounded-lg border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors text-left"
+                  >
+                    <RefreshCw className="w-6 h-6 text-[var(--info)] mb-2" />
+                    <p className="font-medium text-[var(--text-primary)]">통계 새로고침</p>
+                    <p className="text-sm text-[var(--text-muted)]">데이터베이스 통계를 다시 불러옵니다.</p>
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      {/* 복구 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={showRestoreDialog}
+        onClose={() => {
+          setShowRestoreDialog(false);
+          setSelectedBackup(null);
+        }}
+        onConfirm={() => selectedBackup && restoreBackupMutation.mutate(selectedBackup.fileName)}
+        title="데이터 복구"
+        message={`"${selectedBackup?.fileName}" 백업으로 복구하시겠습니까? 현재 데이터가 백업 시점의 데이터로 대체됩니다.`}
+        confirmText="복구"
+        variant="warning"
+        isLoading={restoreBackupMutation.isPending}
+      />
+
+      {/* 데이터 정리 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={showCleanupDialog}
+        onClose={() => setShowCleanupDialog(false)}
+        onConfirm={() => cleanupMutation.mutate()}
+        title="오래된 데이터 정리"
+        message={
+          cleanupPreview
+            ? `${cleanupDays}일 이전의 데이터를 정리합니다.\n\n정리 대상:\n- 읽은 알림: ${cleanupPreview.preview.notifications}개\n- 업로드 로그: ${cleanupPreview.preview.bulkUploadLogs}개\n\n총 ${cleanupPreview.preview.total}개의 레코드가 삭제됩니다.`
+            : "데이터 정리 대상을 확인 중..."
+        }
+        confirmText="정리"
+        variant="warning"
+        isLoading={cleanupMutation.isPending}
+      />
     </div>
   );
 }

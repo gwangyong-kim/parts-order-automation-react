@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -24,16 +25,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!warehouse) {
-      return NextResponse.json({ error: "Warehouse not found" }, { status: 404 });
+      throw notFound("창고");
     }
 
     return NextResponse.json(warehouse);
   } catch (error) {
-    console.error("Failed to fetch warehouse:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch warehouse" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -57,11 +54,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(warehouse);
   } catch (error) {
-    console.error("Failed to update warehouse:", error);
-    return NextResponse.json(
-      { error: "Failed to update warehouse" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -73,12 +66,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ message: "Warehouse deleted successfully" });
+    return deletedResponse("창고가 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete warehouse:", error);
-    return NextResponse.json(
-      { error: "Failed to delete warehouse" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

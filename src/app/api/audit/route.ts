@@ -1,14 +1,25 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const audits = await prisma.auditRecord.findMany({
-      include: {
-        items: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [audits, total] = await Promise.all([
+      prisma.auditRecord.findMany({
+        include: {
+          items: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.auditRecord.count(),
+    ]);
 
     // Transform to match frontend expectations
     const transformedAudits = audits.map((audit) => ({
@@ -16,13 +27,17 @@ export async function GET() {
       createdBy: audit.performedBy ? { name: audit.performedBy } : null,
     }));
 
-    return NextResponse.json(transformedAudits);
+    return NextResponse.json({
+      data: transformedAudits,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch audits:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch audits" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -94,12 +109,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(auditWithItems, { status: 201 });
+    return createdResponse(auditWithItems);
   } catch (error) {
-    console.error("Failed to create audit:", error);
-    return NextResponse.json(
-      { error: "Failed to create audit" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

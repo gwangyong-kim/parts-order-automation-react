@@ -1,26 +1,42 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, createdResponse } from "@/lib/api-error";
+import { calculateMrp } from "@/services/mrp.service";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const salesOrders = await prisma.salesOrder.findMany({
-      include: {
-        items: {
-          include: {
-            product: true,
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [salesOrders, total] = await Promise.all([
+      prisma.salesOrder.findMany({
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.salesOrder.count(),
+    ]);
 
-    return NextResponse.json(salesOrders);
+    return NextResponse.json({
+      data: salesOrders,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch sales orders:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch sales orders" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -86,12 +102,13 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(salesOrder, { status: 201 });
+    // MRP 자동 재계산 (비동기)
+    calculateMrp({ clearExisting: true }).catch((err) => {
+      console.error("MRP 자동 계산 실패:", err);
+    });
+
+    return createdResponse(salesOrder);
   } catch (error) {
-    console.error("Failed to create sales order:", error);
-    return NextResponse.json(
-      { error: "Failed to create sales order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

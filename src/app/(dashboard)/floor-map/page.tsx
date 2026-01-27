@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import {
   Map,
   Search,
@@ -92,6 +93,8 @@ interface FlagIssueData {
 
 export default function FloorMapPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const taskIdParam = searchParams.get("task");
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
@@ -224,7 +227,7 @@ export default function FloorMapPage() {
     setLocationInfo(null);
   };
 
-  const handleStartTask = (task: PickingTask) => {
+  const handleStartTask = useCallback((task: PickingTask) => {
     if (task.status === "PENDING") {
       startTaskMutation.mutate(task.id);
     } else {
@@ -236,7 +239,17 @@ export default function FloorMapPage() {
     if (firstPendingItem) {
       setHighlightLocation(firstPendingItem.storageLocation);
     }
-  };
+  }, [startTaskMutation]);
+
+  // URL 파라미터로 작업 자동 선택
+  useEffect(() => {
+    if (taskIdParam && pickingTasks && !activeTask) {
+      const task = pickingTasks.find(t => t.id === parseInt(taskIdParam));
+      if (task) {
+        handleStartTask(task);
+      }
+    }
+  }, [taskIdParam, pickingTasks, activeTask, handleStartTask]);
 
   const handleScanSubmit = () => {
     const currentItem = activeTask?.items?.[currentItemIndex];

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 import { saveBulkUploadLog } from "@/lib/bulk-upload-logger";
+import { calculateMrp } from "@/services/mrp.service";
 
 // 수주 코드 자동 생성 (SO2501-0001 형식)
 async function generateSOCode(): Promise<string> {
@@ -178,6 +179,13 @@ export async function POST(request: Request) {
 
     // 업로드 로그 저장
     await saveBulkUploadLog("SALES_ORDERS", results);
+
+    // MRP 자동 재계산 (비동기, 성공 건이 있을 때만)
+    if (results.success > 0) {
+      calculateMrp({ clearExisting: true }).catch((err) => {
+        console.error("MRP 자동 계산 실패:", err);
+      });
+    }
 
     return NextResponse.json({
       message: `업로드 완료: 성공 ${results.success}건, 실패 ${results.failed}건`,

@@ -289,52 +289,64 @@ export default async function DashboardPage() {
           </h2>
           {stats.recentTransactions.length > 0 ? (
             <div className="space-y-3">
-              {stats.recentTransactions.map((tx, index) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        tx.transactionType === "INBOUND"
-                          ? "bg-[var(--success-100)] text-[var(--success-600)]"
-                          : "bg-[var(--danger-100)] text-[var(--danger-600)]"
-                      }`}
-                    >
-                      {tx.transactionType === "INBOUND" ? (
-                        <ArrowDownRight className="w-5 h-5" />
-                      ) : (
-                        <ArrowUpRight className="w-5 h-5" />
-                      )}
+              {stats.recentTransactions.map((tx, index) => {
+                // ADJUSTMENT의 경우 실제 변화량 계산, 그 외는 quantity 사용
+                const changeAmount = tx.transactionType === "ADJUSTMENT"
+                  ? tx.afterQty - tx.beforeQty
+                  : tx.transactionType === "INBOUND"
+                    ? tx.quantity
+                    : -tx.quantity;
+                const isPositive = changeAmount >= 0;
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between p-4 rounded-xl bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          isPositive
+                            ? "bg-[var(--success-100)] text-[var(--success-600)]"
+                            : "bg-[var(--danger-100)] text-[var(--danger-600)]"
+                        }`}
+                      >
+                        {isPositive ? (
+                          <ArrowDownRight className="w-5 h-5" />
+                        ) : (
+                          <ArrowUpRight className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-[var(--text-primary)]">
+                          {tx.part.partName}
+                        </p>
+                        <p className="text-sm text-[var(--text-muted)] mono">
+                          {tx.transactionCode}
+                          {tx.transactionType === "ADJUSTMENT" && (
+                            <span className="ml-1 text-[var(--info)]">(조정)</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-[var(--text-primary)]">
-                        {tx.part.partName}
+                    <div className="text-right">
+                      <p
+                        className={`font-bold tabular-nums text-lg ${
+                          isPositive
+                            ? "text-[var(--success-600)]"
+                            : "text-[var(--danger-600)]"
+                        }`}
+                      >
+                        {isPositive ? "+" : ""}{changeAmount}
                       </p>
-                      <p className="text-sm text-[var(--text-muted)] mono">
-                        {tx.transactionCode}
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {new Date(tx.createdAt).toLocaleDateString("ko-KR")}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p
-                      className={`font-bold tabular-nums text-lg ${
-                        tx.transactionType === "INBOUND"
-                          ? "text-[var(--success-600)]"
-                          : "text-[var(--danger-600)]"
-                      }`}
-                    >
-                      {tx.transactionType === "INBOUND" ? "+" : "-"}
-                      {tx.quantity}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {new Date(tx.createdAt).toLocaleDateString("ko-KR")}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">

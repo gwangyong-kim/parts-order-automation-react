@@ -146,35 +146,4 @@ export function getOptionLabel<T extends readonly { value: string; label: string
   return option?.label || value;
 }
 
-/**
- * 통화 형식으로 숫자 포맷팅
- */
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat(CURRENCY.LOCALE, {
-    style: "currency",
-    currency: CURRENCY.CODE,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-/**
- * 숫자 형식으로 포맷팅
- */
-export function formatNumber(value: number, maximumFractionDigits = 0): string {
-  return new Intl.NumberFormat(CURRENCY.LOCALE, {
-    maximumFractionDigits,
-  }).format(value);
-}
-
-/**
- * 날짜 형식으로 포맷팅
- */
-export function formatDate(date: string | Date, includeTime = false): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString(CURRENCY.LOCALE, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    ...(includeTime && { hour: "2-digit", minute: "2-digit" }),
-  });
-}
+// 참고: formatCurrency, formatNumber, formatDate는 @/lib/utils에서 import하세요

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hash } from "bcryptjs";
+import { handleApiError, notFound, badRequest, deletedResponse } from "@/lib/api-error";
+import { requireAuth, requireAdmin } from "@/lib/authorization";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -8,6 +10,12 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    // 인증된 사용자만 조회 가능
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const user = await prisma.user.findUnique({
       where: { id: parseInt(id) },
@@ -25,21 +33,23 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      throw notFound("사용자");
     }
 
     return NextResponse.json(user);
   } catch (error) {
-    console.error("Failed to fetch user:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch user" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function PUT(request: Request, { params }: Params) {
   try {
+    // 관리자만 사용자 수정 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const body = await request.json();
 
@@ -53,10 +63,7 @@ export async function PUT(request: Request, { params }: Params) {
       });
 
       if (existingUser) {
-        return NextResponse.json(
-          { error: "Username already exists" },
-          { status: 400 }
-        );
+        throw badRequest("Username already exists");
       }
     }
 
@@ -92,16 +99,18 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(user);
   } catch (error) {
-    console.error("Failed to update user:", error);
-    return NextResponse.json(
-      { error: "Failed to update user" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
+    // 관리자만 사용자 삭제 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
 
     // Soft delete - just deactivate the user
@@ -110,12 +119,8 @@ export async function DELETE(request: Request, { params }: Params) {
       data: { isActive: false },
     });
 
-    return NextResponse.json({ success: true });
+    return deletedResponse("사용자가 비활성화되었습니다.");
   } catch (error) {
-    console.error("Failed to delete user:", error);
-    return NextResponse.json(
-      { error: "Failed to delete user" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

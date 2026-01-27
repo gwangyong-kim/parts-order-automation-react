@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, createdResponse } from "@/lib/api-error";
 
 // GET: 알림 목록 조회
 export async function GET(request: Request) {
@@ -23,11 +24,7 @@ export async function GET(request: Request) {
       unreadCount,
     });
   } catch (error) {
-    console.error("Failed to fetch notifications:", error);
-    return NextResponse.json(
-      { error: "알림을 불러오는데 실패했습니다." },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -47,12 +44,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(notification, { status: 201 });
+    return createdResponse(notification);
   } catch (error) {
-    console.error("Failed to create notification:", error);
-    return NextResponse.json(
-      { error: "알림 생성에 실패했습니다." },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

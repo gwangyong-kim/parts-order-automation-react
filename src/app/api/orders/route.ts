@@ -1,20 +1,31 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createOrderCreatedNotification } from "@/services/notification.service";
+import { handleApiError, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const orders = await prisma.order.findMany({
-      include: {
-        supplier: true,
-        items: {
-          include: {
-            part: true,
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        include: {
+          supplier: true,
+          items: {
+            include: {
+              part: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.order.count(),
+    ]);
 
     // Transform to match frontend expectations
     const transformedOrders = orders.map((order) => ({
@@ -23,13 +34,17 @@ export async function GET() {
       totalAmount: order.totalAmount || 0,
     }));
 
-    return NextResponse.json(transformedOrders);
+    return NextResponse.json({
+      data: transformedOrders,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch orders:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch orders" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -61,12 +76,8 @@ export async function POST(request: Request) {
       order.totalAmount || 0
     ).catch(console.error);
 
-    return NextResponse.json(order, { status: 201 });
+    return createdResponse(order);
   } catch (error) {
-    console.error("Failed to create order:", error);
-    return NextResponse.json(
-      { error: "Failed to create order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

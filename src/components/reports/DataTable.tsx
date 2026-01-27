@@ -113,7 +113,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   return (
     <div className="glass-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full table-bordered">
           <thead>
             <tr className="border-b border-[var(--glass-border)]">
               {columns.map((column) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useId } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,7 @@ export default function Modal({
   showCloseButton = true,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -59,6 +60,9 @@ export default function Modal({
       {/* Modal */}
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={cn(
           "relative w-full mx-4 glass-card rounded-2xl shadow-2xl animate-fade-in",
           sizeClasses[size]
@@ -66,15 +70,16 @@ export default function Modal({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--glass-border)]">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+          <h2 id={titleId} className="text-lg font-semibold text-[var(--text-primary)]">
             {title}
           </h2>
           {showCloseButton && (
             <button
               onClick={onClose}
+              aria-label="닫기"
               className="p-2 hover:bg-[var(--gray-100)] rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-[var(--text-secondary)]" />
+              <X className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
             </button>
           )}
         </div>

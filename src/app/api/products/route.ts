@@ -1,27 +1,42 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const products = await prisma.product.findMany({
-      where: { isActive: true },
-      include: {
-        bomItems: {
-          include: {
-            part: true,
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where: { isActive: true },
+        include: {
+          bomItems: {
+            include: {
+              part: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.product.count({ where: { isActive: true } }),
+    ]);
 
-    return NextResponse.json(products);
+    return NextResponse.json({
+      data: products,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch products:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch products" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -59,12 +74,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(product, { status: 201 });
+    return createdResponse(product);
   } catch (error) {
-    console.error("Failed to create product:", error);
-    return NextResponse.json(
-      { error: "Failed to create product" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

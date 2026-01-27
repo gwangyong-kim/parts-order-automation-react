@@ -129,7 +129,7 @@ export default function ZoneGrid({
                 if (isShelfHighlighted) return "var(--primary)";
                 if (pickingMode && hasPicking) {
                   switch (pickingStatus) {
-                    case "in_progress": return "#3b82f6"; // blue-500
+                    case "in_progress": return "#f97316"; // orange-500
                     case "completed": return "#22c55e"; // green-500
                     case "pending": return "#facc15"; // yellow-400
                     default: return "white";
@@ -143,7 +143,7 @@ export default function ZoneGrid({
                 if (isShelfHighlighted) return "var(--primary)";
                 if (pickingMode && hasPicking) {
                   switch (pickingStatus) {
-                    case "in_progress": return "#2563eb"; // blue-600
+                    case "in_progress": return "#ea580c"; // orange-600
                     case "completed": return "#16a34a"; // green-600
                     case "pending": return "#eab308"; // yellow-500
                     default: return "transparent";

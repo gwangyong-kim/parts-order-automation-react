@@ -1,22 +1,33 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const inventory = await prisma.inventory.findMany({
-      include: {
-        part: {
-          select: {
-            id: true,
-            partCode: true,
-            partName: true,
-            unit: true,
-            safetyStock: true,
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [inventory, total] = await Promise.all([
+      prisma.inventory.findMany({
+        include: {
+          part: {
+            select: {
+              id: true,
+              partCode: true,
+              partName: true,
+              unit: true,
+              safetyStock: true,
+            },
           },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+        orderBy: { updatedAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.inventory.count(),
+    ]);
 
     // Transform to match frontend expectations
     const transformedInventory = inventory.map((item) => ({
@@ -28,12 +39,16 @@ export async function GET() {
       } : null,
     }));
 
-    return NextResponse.json(transformedInventory);
+    return NextResponse.json({
+      data: transformedInventory,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch inventory:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch inventory" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

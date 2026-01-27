@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"c:\\\\Users\\\\user\\\\Desktop\\\\000 Automation Project\\\\parts-order-automation-project-react\\\\table-example.html\")",
+      "WebFetch(domain:blog.logrocket.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:uxplanet.org)",
+      "WebFetch(domain:www.pencilandpaper.io)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nstyle: 테이블 컬럼 너비 통일 및 가독성 개선\n\n- globals.css에 테이블 컬럼 너비 클래스 추가\n  - table-col-code: 코드 필드 \\(140px\\)\n  - table-col-name: 이름 필드 \\(180px\\)\n  - table-col-name-lg: 큰 이름 필드 \\(220px\\)\n  - table-col-desc: 설명/비고 필드 \\(150px\\)\n  - table-col-short: 짧은 텍스트 \\(70px\\)\n  - table-col-status: 상태/뱃지 \\(80px\\)\n  - table-col-qty: 수량 \\(80px\\)\n  - table-col-amount: 금액 \\(100px\\)\n  - table-col-date/datetime: 날짜/일시\n  - table-col-action: 작업 버튼 \\(80px\\)\n  - table-truncate: 텍스트 말줄임 처리\n- 주요 테이블에 일관된 컬럼 너비 적용\n  - 입출고 내역, 현재고 현황, 발주 관리\n  - 파츠 관리, 제품 관리, 수주 관리\n  - 공급업체 관리, 사용자 관리\n- 긴 텍스트 말줄임 처리 및 툴팁 추가\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
+    ]
+  },
+  "outputStyle": "default"
+}

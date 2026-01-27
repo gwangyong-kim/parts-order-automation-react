@@ -1,21 +1,31 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const transactions = await prisma.transaction.findMany({
-      include: {
-        part: {
-          select: {
-            id: true,
-            partCode: true,
-            partName: true,
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [transactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        include: {
+          part: {
+            select: {
+              id: true,
+              partCode: true,
+              partName: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.transaction.count(),
+    ]);
 
     // Transform to match frontend expectations
     const transformedTransactions = transactions.map((tx) => ({
@@ -27,13 +37,17 @@ export async function GET() {
       createdBy: tx.performedBy ? { name: tx.performedBy } : null,
     }));
 
-    return NextResponse.json(transformedTransactions);
+    return NextResponse.json({
+      data: transformedTransactions,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error("Failed to fetch transactions:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch transactions" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -47,10 +61,7 @@ export async function POST(request: Request) {
     });
 
     if (!inventory) {
-      return NextResponse.json(
-        { error: "Inventory not found for this part" },
-        { status: 404 }
-      );
+      throw notFound("해당 부품의 재고");
     }
 
     const beforeQty = inventory.currentQty;
@@ -91,12 +102,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(transaction, { status: 201 });
+    return createdResponse(transaction);
   } catch (error) {
-    console.error("Failed to create transaction:", error);
-    return NextResponse.json(
-      { error: "Failed to create transaction" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

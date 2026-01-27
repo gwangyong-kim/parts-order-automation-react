@@ -3,17 +3,27 @@ import prisma from "@/lib/prisma";
 import { partApiSchema } from "@/schemas/part.schema";
 import { handleApiError, createdResponse } from "@/lib/api-error";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const parts = await prisma.part.findMany({
-      where: { isActive: true },
-      include: {
-        category: true,
-        supplier: true,
-        inventory: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const skip = (page - 1) * pageSize;
+
+    const [parts, total] = await Promise.all([
+      prisma.part.findMany({
+        where: { isActive: true },
+        include: {
+          category: true,
+          supplier: true,
+          inventory: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.part.count({ where: { isActive: true } }),
+    ]);
 
     // DB 필드명을 프론트엔드 필드명으로 변환
     const transformedParts = parts.map((part) => ({
@@ -22,7 +32,15 @@ export async function GET() {
       leadTime: part.leadTimeDays,
     }));
 
-    return NextResponse.json(transformedParts);
+    return NextResponse.json({
+      data: transformedParts,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
     return handleApiError(error);
   }

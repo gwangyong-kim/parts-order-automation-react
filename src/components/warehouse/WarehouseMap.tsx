@@ -156,7 +156,7 @@ export default function WarehouseMap({
                 <span className="text-xs">피킹 대기</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-blue-500 animate-pulse" />
+                <div className="w-3 h-3 rounded bg-orange-500 animate-pulse" />
                 <span className="text-xs">피킹 진행중</span>
               </div>
               <div className="flex items-center gap-2">

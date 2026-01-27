@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -17,11 +18,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(notification);
   } catch (error) {
-    console.error("Failed to update notification:", error);
-    return NextResponse.json(
-      { error: "알림 업데이트에 실패했습니다." },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -34,12 +31,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ message: "알림이 삭제되었습니다." });
+    return deletedResponse("알림이 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete notification:", error);
-    return NextResponse.json(
-      { error: "알림 삭제에 실패했습니다." },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

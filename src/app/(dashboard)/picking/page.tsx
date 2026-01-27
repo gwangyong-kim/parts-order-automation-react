@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ClipboardCheck,
   Play,
@@ -57,6 +58,7 @@ const priorityConfig: Record<PickingTaskPriority, { label: string; color: string
 
 export default function PickingPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PickingTaskStatus | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<PickingTask | null>(null);
@@ -70,10 +72,20 @@ export default function PickingPage() {
     mutationFn: (id: number) => updateTaskStatus(id, "IN_PROGRESS"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
-      toast.success("피킹 작업이 시작되었습니다.");
     },
     onError: () => toast.error("작업 시작에 실패했습니다."),
   });
+
+  // 작업 시작 후 창고 맵으로 이동
+  const handleStartTask = async (taskId: number) => {
+    try {
+      await startMutation.mutateAsync(taskId);
+      toast.success("피킹 작업이 시작되었습니다.");
+      router.push(`/floor-map?task=${taskId}`);
+    } catch {
+      // 에러는 mutation에서 처리됨
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deletePickingTask(id),
@@ -214,7 +226,7 @@ export default function PickingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-bordered">
               <thead>
                 <tr className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
                   <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
@@ -312,7 +324,7 @@ export default function PickingPage() {
                         <div className="flex items-center justify-center gap-2">
                           {task.status === "PENDING" && (
                             <button
-                              onClick={() => startMutation.mutate(task.id)}
+                              onClick={() => handleStartTask(task.id)}
                               className="btn btn-primary btn-sm"
                               disabled={startMutation.isPending}
                             >
@@ -322,7 +334,7 @@ export default function PickingPage() {
                           )}
                           {task.status === "IN_PROGRESS" && (
                             <Link
-                              href={`/picking/${task.id}`}
+                              href={`/floor-map?task=${task.id}`}
                               className="btn btn-primary btn-sm"
                             >
                               계속
@@ -330,7 +342,7 @@ export default function PickingPage() {
                           )}
                           {task.status === "COMPLETED" && (
                             <Link
-                              href={`/picking/${task.id}`}
+                              href={`/floor-map?task=${task.id}`}
                               className="btn-secondary btn-sm"
                             >
                               상세

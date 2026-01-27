@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -10,7 +10,9 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, className, id, ...props }, ref) => {
-    const textareaId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = useId();
+    const textareaId = id || generatedId;
+    const errorId = `${textareaId}-error`;
 
     return (
       <div className="space-y-1.5">
@@ -26,6 +28,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           ref={ref}
           id={textareaId}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={cn(
             "input w-full min-h-[100px] resize-y",
             error && "border-[var(--danger)] focus:ring-[var(--danger)]",
@@ -34,7 +38,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {error && (
-          <p className="text-sm text-[var(--danger)]">{error}</p>
+          <p id={errorId} role="alert" className="text-sm text-[var(--danger)]">{error}</p>
         )}
       </div>
     );

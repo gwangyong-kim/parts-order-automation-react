@@ -1,9 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import Modal, { ModalFooter } from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
+import { Spinner } from "@/components/ui/Spinner";
+
+// 폼 스키마 - 생성/수정 통합
+const userFormSchema = z.object({
+  username: z
+    .string()
+    .min(3, "아이디는 3자 이상이어야 합니다.")
+    .max(20, "아이디는 20자 이내로 입력해주세요.")
+    .regex(/^[a-zA-Z0-9_]+$/, "아이디는 영문, 숫자, 밑줄만 사용할 수 있습니다."),
+  name: z
+    .string()
+    .min(1, "이름을 입력해주세요.")
+    .max(50, "이름은 50자 이내로 입력해주세요."),
+  email: z.string().email("올바른 이메일 형식이 아닙니다.").or(z.literal("")).optional(),
+  password: z.string().optional(),
+  role: z.enum(["ADMIN", "MANAGER", "OPERATOR", "VIEWER"]),
+  department: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+type UserFormData = z.infer<typeof userFormSchema>;
 
 interface User {
   id?: number;
@@ -43,86 +67,82 @@ export default function UserForm({
   initialData,
   isLoading = false,
 }: UserFormProps) {
-  const [formData, setFormData] = useState<Partial<User>>({
-    username: "",
-    name: "",
-    email: "",
-    role: "VIEWER",
-    department: "",
-    password: "",
-    isActive: true,
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<UserFormData>({
+    resolver: zodResolver(
+      userFormSchema.refine(
+        (data) => {
+          // 신규 생성시에만 비밀번호 필수
+          if (!initialData && (!data.password || data.password.length < 6)) {
+            return false;
+          }
+          // 수정시 비밀번호 입력한 경우 6자 이상
+          if (initialData && data.password && data.password.length < 6) {
+            return false;
+          }
+          return true;
+        },
+        {
+          message: initialData
+            ? "비밀번호는 6자 이상이어야 합니다."
+            : "비밀번호를 6자 이상 입력해주세요.",
+          path: ["password"],
+        }
+      )
+    ),
+    defaultValues: {
+      username: "",
+      name: "",
+      email: "",
+      password: "",
+      role: "VIEWER",
+      department: "",
+      isActive: true,
+    },
   });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
-        setFormData({
+        reset({
           username: initialData.username || "",
           name: initialData.name || "",
           email: initialData.email || "",
-          role: initialData.role || "VIEWER",
+          password: "",
+          role: (initialData.role as UserFormData["role"]) || "VIEWER",
           department: initialData.department || "",
-          password: "", // Don't populate password
           isActive: initialData.isActive ?? true,
         });
       } else {
-        setFormData({
+        reset({
           username: "",
           name: "",
           email: "",
+          password: "",
           role: "VIEWER",
           department: "",
-          password: "",
           isActive: true,
         });
       }
-      setErrors({});
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, reset]);
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.username?.trim()) {
-      newErrors.username = "아이디를 입력해주세요.";
+  const onFormSubmit = (data: UserFormData) => {
+    const submitData: Partial<User> = { ...data };
+    // 수정 시 비밀번호가 비어있으면 제외
+    if (initialData && !submitData.password) {
+      delete submitData.password;
     }
-    if (!formData.name?.trim()) {
-      newErrors.name = "이름을 입력해주세요.";
-    }
-    if (!initialData && !formData.password) {
-      newErrors.password = "비밀번호를 입력해주세요.";
-    }
-    if (formData.password && formData.password.length < 6) {
-      newErrors.password = "비밀번호는 6자 이상이어야 합니다.";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    onSubmit(submitData);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validate()) {
-      const submitData = { ...formData };
-      // Don't send empty password when editing
-      if (initialData && !submitData.password) {
-        delete submitData.password;
-      }
-      onSubmit(submitData);
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "isActive" ? value === "true" : value,
-    }));
-  };
+  const isActiveValue = watch("isActive");
 
   return (
     <Modal
@@ -131,66 +151,54 @@ export default function UserForm({
       title={initialData ? "사용자 수정" : "사용자 추가"}
       size="md"
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onFormSubmit)}>
         <div className="space-y-4">
           <Input
             label="아이디"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            error={errors.username}
+            {...register("username")}
+            error={errors.username?.message}
             required
-            disabled={!!initialData} // Username cannot be changed
+            disabled={!!initialData}
             placeholder="로그인에 사용할 아이디"
           />
           <Input
             label="이름"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            error={errors.name}
+            {...register("name")}
+            error={errors.name?.message}
             required
             placeholder="사용자 이름"
           />
           <Input
             label="이메일"
-            name="email"
             type="email"
-            value={formData.email || ""}
-            onChange={handleChange}
+            {...register("email")}
+            error={errors.email?.message}
             placeholder="이메일 주소 (선택)"
           />
           <Input
             label={initialData ? "비밀번호 (변경시에만 입력)" : "비밀번호"}
-            name="password"
             type="password"
-            value={formData.password || ""}
-            onChange={handleChange}
-            error={errors.password}
+            {...register("password")}
+            error={errors.password?.message}
             required={!initialData}
             placeholder={initialData ? "변경하지 않으려면 비워두세요" : "비밀번호 입력"}
           />
           <Select
             label="역할"
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
+            {...register("role")}
             options={roleOptions}
             required
           />
           <Input
             label="부서"
-            name="department"
-            value={formData.department || ""}
-            onChange={handleChange}
+            {...register("department")}
             placeholder="소속 부서 (선택)"
           />
           {initialData && (
             <Select
               label="상태"
-              name="isActive"
-              value={formData.isActive?.toString()}
-              onChange={handleChange}
+              value={isActiveValue?.toString()}
+              onChange={(e) => setValue("isActive", e.target.value === "true")}
               options={statusOptions}
             />
           )}
@@ -208,22 +216,7 @@ export default function UserForm({
           <button type="submit" className="btn-primary" disabled={isLoading}>
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
+                <Spinner size="sm" />
                 처리 중...
               </span>
             ) : initialData ? (

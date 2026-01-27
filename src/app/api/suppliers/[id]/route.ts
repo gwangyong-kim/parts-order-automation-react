@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -13,16 +14,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!supplier) {
-      return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+      throw notFound("공급업체");
     }
 
     return NextResponse.json(supplier);
   } catch (error) {
-    console.error("Failed to fetch supplier:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch supplier" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -46,11 +43,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(supplier);
   } catch (error) {
-    console.error("Failed to update supplier:", error);
-    return NextResponse.json(
-      { error: "Failed to update supplier" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -64,12 +57,8 @@ export async function DELETE(request: Request, { params }: Params) {
       data: { isActive: false },
     });
 
-    return NextResponse.json({ message: "Supplier deleted successfully" });
+    return deletedResponse("공급업체가 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete supplier:", error);
-    return NextResponse.json(
-      { error: "Failed to delete supplier" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

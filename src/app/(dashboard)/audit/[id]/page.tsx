@@ -405,7 +405,7 @@ export default function AuditDetailPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-bordered">
               <thead>
                 <tr className="border-b border-[var(--glass-border)]">
                   <th className="table-header">상태</th>

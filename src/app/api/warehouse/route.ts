@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, createdResponse } from "@/lib/api-error";
 
 export async function GET() {
   try {
@@ -16,11 +17,7 @@ export async function GET() {
 
     return NextResponse.json(warehouses);
   } catch (error) {
-    console.error("Failed to fetch warehouses:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch warehouses", details: String(error) },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -40,12 +37,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(warehouse, { status: 201 });
+    return createdResponse(warehouse);
   } catch (error) {
-    console.error("Failed to create warehouse:", error);
-    return NextResponse.json(
-      { error: "Failed to create warehouse" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -18,16 +19,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!part) {
-      return NextResponse.json({ error: "Part not found" }, { status: 404 });
+      throw notFound("부품");
     }
 
     return NextResponse.json(part);
   } catch (error) {
-    console.error("Failed to fetch part:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch part" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -60,11 +57,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(part);
   } catch (error) {
-    console.error("Failed to update part:", error);
-    return NextResponse.json(
-      { error: "Failed to update part" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -78,12 +71,8 @@ export async function DELETE(request: Request, { params }: Params) {
       data: { isActive: false },
     });
 
-    return NextResponse.json({ message: "Part deleted successfully" });
+    return deletedResponse("부품이 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete part:", error);
-    return NextResponse.json(
-      { error: "Failed to delete part" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

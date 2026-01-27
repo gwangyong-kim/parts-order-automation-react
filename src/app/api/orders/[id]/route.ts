@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createOrderStatusChangedNotification } from "@/services/notification.service";
+import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -22,16 +23,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      throw notFound("발주");
     }
 
     return NextResponse.json(order);
   } catch (error) {
-    console.error("Failed to fetch order:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -74,11 +71,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(order);
   } catch (error) {
-    console.error("Failed to update order:", error);
-    return NextResponse.json(
-      { error: "Failed to update order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -95,12 +88,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: parseInt(id) },
     });
 
-    return NextResponse.json({ message: "Order deleted successfully" });
+    return deletedResponse("발주가 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete order:", error);
-    return NextResponse.json(
-      { error: "Failed to delete order" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

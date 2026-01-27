@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { handleApiError, notFound, badRequest, deletedResponse } from "@/lib/api-error";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -16,16 +17,12 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     if (!transaction) {
-      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+      throw notFound("거래 내역");
     }
 
     return NextResponse.json(transaction);
   } catch (error) {
-    console.error("Failed to fetch transaction:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch transaction" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -48,7 +45,7 @@ export async function PUT(request: Request, { params }: Params) {
     });
 
     if (!existingTransaction) {
-      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+      throw notFound("거래 내역");
     }
 
     // 재고 롤백 계산 (기존 트랜잭션 영향 제거)
@@ -74,10 +71,7 @@ export async function PUT(request: Request, { params }: Params) {
     } else if (newType === "OUTBOUND") {
       afterQty = inventoryQty - newQuantity;
       if (afterQty < 0) {
-        return NextResponse.json(
-          { error: "재고가 부족합니다." },
-          { status: 400 }
-        );
+        throw badRequest("재고가 부족합니다.");
       }
     } else if (newType === "ADJUSTMENT") {
       afterQty = newQuantity; // 조정의 경우 수량이 직접 재고가 됨
@@ -112,11 +106,7 @@ export async function PUT(request: Request, { params }: Params) {
 
     return NextResponse.json(updatedTransaction);
   } catch (error) {
-    console.error("Failed to update transaction:", error);
-    return NextResponse.json(
-      { error: "Failed to update transaction" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -138,7 +128,7 @@ export async function DELETE(request: Request, { params }: Params) {
     });
 
     if (!existingTransaction) {
-      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+      throw notFound("거래 내역");
     }
 
     // 재고 롤백 계산
@@ -154,10 +144,7 @@ export async function DELETE(request: Request, { params }: Params) {
 
     // 재고가 음수가 되지 않도록 확인
     if (inventoryQty < 0) {
-      return NextResponse.json(
-        { error: "삭제 시 재고가 음수가 됩니다. 삭제할 수 없습니다." },
-        { status: 400 }
-      );
+      throw badRequest("삭제 시 재고가 음수가 됩니다. 삭제할 수 없습니다.");
     }
 
     // 재고 업데이트
@@ -173,12 +160,8 @@ export async function DELETE(request: Request, { params }: Params) {
       where: { id: transactionId },
     });
 
-    return NextResponse.json({ success: true });
+    return deletedResponse("거래 내역이 삭제되었습니다.");
   } catch (error) {
-    console.error("Failed to delete transaction:", error);
-    return NextResponse.json(
-      { error: "Failed to delete transaction" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
