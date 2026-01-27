@@ -26,6 +26,7 @@ export async function GET(request: Request, { params }: Params) {
         email: true,
         role: true,
         department: true,
+        profileImage: true,
         isActive: true,
         lastLogin: true,
         createdAt: true,

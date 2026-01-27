@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   User,
   LogOut,
@@ -19,6 +20,19 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  // 사용자 프로필 조회 (프로필 이미지 포함)
+  const { data: userProfile } = useQuery({
+    queryKey: ["userProfile", session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const res = await fetch(`/api/users/${session.user.id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!session?.user?.id,
+    staleTime: 1000 * 60 * 5, // 5분간 캐시
+  });
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: "/login" });
@@ -50,8 +64,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-2.5 p-2 pl-2 pr-3 rounded-xl hover:bg-[var(--gray-100)] transition-all"
           >
-            <div className="header-user-avatar w-8 h-8 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
+            <div className="header-user-avatar w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+              {userProfile?.profileImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={userProfile.profileImage}
+                  alt="프로필"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className="w-4 h-4 text-white" />
+              )}
             </div>
             <div className="hidden md:block text-left">
               <p className="text-sm font-medium text-[var(--gray-900)]">

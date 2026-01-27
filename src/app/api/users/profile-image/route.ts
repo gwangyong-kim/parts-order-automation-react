@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { writeFile, unlink } from "fs/promises";
+import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import sharp from "sharp";
 import prisma from "@/lib/prisma";
 import { handleApiError, badRequest, unauthorized } from "@/lib/api-error";
 import { requireAuth } from "@/lib/authorization";
@@ -48,7 +49,9 @@ export async function POST(request: Request) {
 
     // 기존 프로필 이미지 삭제
     if (user.profileImage) {
-      const oldImagePath = path.join(process.cwd(), "public", user.profileImage);
+      // /api/uploads/... 경로를 /uploads/...로 변환
+      const relativePath = user.profileImage.replace("/api/uploads/", "/uploads/");
+      const oldImagePath = path.join(process.cwd(), "public", relativePath);
       if (existsSync(oldImagePath)) {
         try {
           await unlink(oldImagePath);
@@ -58,20 +61,26 @@ export async function POST(request: Request) {
       }
     }
 
-    // 파일 저장
+    // 파일 저장 (sharp로 리사이징 및 품질 개선)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 파일명 생성 (userId + timestamp + extension)
-    const ext = file.name.split(".").pop() || "jpg";
-    const fileName = `profile_${userId}_${Date.now()}.${ext}`;
+    // 파일명 생성 (항상 webp로 저장하여 품질 유지)
+    const fileName = `profile_${userId}_${Date.now()}.webp`;
     const uploadDir = path.join(process.cwd(), "public", "uploads", "profiles");
     const filePath = path.join(uploadDir, fileName);
 
-    await writeFile(filePath, buffer);
+    // 이미지 리사이징: 200x200, 고품질 webp로 저장
+    await sharp(buffer)
+      .resize(200, 200, {
+        fit: "cover",
+        position: "center",
+      })
+      .webp({ quality: 90 })
+      .toFile(filePath);
 
-    // DB 업데이트
-    const profileImageUrl = `/uploads/profiles/${fileName}`;
+    // DB 업데이트 (API 경로로 저장)
+    const profileImageUrl = `/api/uploads/profiles/${fileName}`;
     await prisma.user.update({
       where: { id: userId },
       data: { profileImage: profileImageUrl },
@@ -109,7 +118,9 @@ export async function DELETE(request: Request) {
 
     // 기존 프로필 이미지 삭제
     if (user.profileImage) {
-      const oldImagePath = path.join(process.cwd(), "public", user.profileImage);
+      // /api/uploads/... 경로를 /uploads/...로 변환
+      const relativePath = user.profileImage.replace("/api/uploads/", "/uploads/");
+      const oldImagePath = path.join(process.cwd(), "public", relativePath);
       if (existsSync(oldImagePath)) {
         try {
           await unlink(oldImagePath);
