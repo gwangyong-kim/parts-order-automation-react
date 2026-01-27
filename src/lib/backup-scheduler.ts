@@ -429,30 +429,104 @@ export async function getBackupHistory(limit: number = 20) {
  * 디스크 사용량 확인
  */
 export async function checkDiskUsage(): Promise<{
-  totalBackupSize: number;
-  backupCount: number;
-  formattedSize: string;
+  backup: {
+    totalSize: number;
+    totalSizeFormatted: string;
+    fileCount: number;
+    oldestBackup: { name: string; date: string } | null;
+    newestBackup: { name: string; date: string } | null;
+  };
+  data: {
+    totalSize: number;
+    totalSizeFormatted: string;
+  };
+  threshold: {
+    limitGb: number;
+    isOverThreshold: boolean;
+    usagePercent: number;
+  };
 }> {
   try {
     const files = await fs.readdir(BACKUP_DIR);
     const backupFiles = files.filter((f) => f.endsWith(".db"));
 
-    let totalSize = 0;
+    let totalBackupSize = 0;
+    let oldestBackup: { name: string; date: Date } | null = null;
+    let newestBackup: { name: string; date: Date } | null = null;
+
     for (const file of backupFiles) {
-      const stat = await fs.stat(path.join(BACKUP_DIR, file));
-      totalSize += stat.size;
+      const filePath = path.join(BACKUP_DIR, file);
+      const stat = await fs.stat(filePath);
+      totalBackupSize += stat.size;
+
+      if (!oldestBackup || stat.mtime < oldestBackup.date) {
+        oldestBackup = { name: file, date: stat.mtime };
+      }
+      if (!newestBackup || stat.mtime > newestBackup.date) {
+        newestBackup = { name: file, date: stat.mtime };
+      }
     }
 
+    // DB 파일 크기
+    let dbSize = 0;
+    try {
+      const dbPath = path.join(DATA_DIR, DB_FILE);
+      const dbStat = await fs.stat(dbPath);
+      dbSize = dbStat.size;
+    } catch {
+      // DB 파일 없음
+    }
+
+    // 설정에서 임계값 가져오기
+    let thresholdGb = 5; // 기본값
+    try {
+      const settings = await prisma.backupSettings.findFirst();
+      if (settings?.diskThresholdGb) {
+        thresholdGb = settings.diskThresholdGb;
+      }
+    } catch {
+      // 설정 조회 실패 시 기본값 사용
+    }
+
+    const thresholdBytes = thresholdGb * 1024 * 1024 * 1024;
+    const usagePercent = thresholdBytes > 0 ? Math.round((totalBackupSize / thresholdBytes) * 100) : 0;
+
     return {
-      totalBackupSize: totalSize,
-      backupCount: backupFiles.length,
-      formattedSize: formatBytes(totalSize),
+      backup: {
+        totalSize: totalBackupSize,
+        totalSizeFormatted: formatBytes(totalBackupSize),
+        fileCount: backupFiles.length,
+        oldestBackup: oldestBackup ? { name: oldestBackup.name, date: oldestBackup.date.toISOString() } : null,
+        newestBackup: newestBackup ? { name: newestBackup.name, date: newestBackup.date.toISOString() } : null,
+      },
+      data: {
+        totalSize: dbSize,
+        totalSizeFormatted: formatBytes(dbSize),
+      },
+      threshold: {
+        limitGb: thresholdGb,
+        isOverThreshold: totalBackupSize > thresholdBytes,
+        usagePercent,
+      },
     };
   } catch {
     return {
-      totalBackupSize: 0,
-      backupCount: 0,
-      formattedSize: "0 Bytes",
+      backup: {
+        totalSize: 0,
+        totalSizeFormatted: "0 Bytes",
+        fileCount: 0,
+        oldestBackup: null,
+        newestBackup: null,
+      },
+      data: {
+        totalSize: 0,
+        totalSizeFormatted: "0 Bytes",
+      },
+      threshold: {
+        limitGb: 5,
+        isOverThreshold: false,
+        usagePercent: 0,
+      },
     };
   }
 }
