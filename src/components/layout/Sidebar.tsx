@@ -105,6 +105,10 @@ export default function Sidebar() {
           alt="glluga"
           className="h-8 w-auto"
         />
+        <div>
+          <h1 className="text-lg font-bold text-white tracking-tight">PartSync</h1>
+          <p className="text-xs text-white/50">MRP System</p>
+        </div>
       </div>
 
       {/* Navigation */}
