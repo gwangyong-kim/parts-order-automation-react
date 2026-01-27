@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Image from "next/image";
+import Cropper, { Area } from "react-easy-crop";
 import {
   User,
   Bell,
@@ -25,6 +25,8 @@ import {
   Camera,
   X,
   ExternalLink,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -41,6 +43,13 @@ interface Backup {
   createdAt: string;
   size: number;
   sizeFormatted: string;
+  checksumValid?: boolean;
+  metadata?: {
+    type?: string;
+    description?: string;
+    appVersion?: string;
+    recordCounts?: Record<string, number>;
+  };
 }
 
 interface DbStats {
@@ -96,6 +105,33 @@ export default function SettingsPage() {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 이미지 크롭 상태
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
+  // 사용자 프로필 조회
+  const { data: userProfile } = useQuery({
+    queryKey: ["userProfile", session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const res = await fetch(`/api/users/${session.user.id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!session?.user?.id,
+  });
+
+  // 프로필 이미지 초기화
+  useEffect(() => {
+    if (userProfile?.profileImage) {
+      setProfileImage(userProfile.profileImage);
+    }
+  }, [userProfile]);
 
   // 외부 연동 상태
   const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState(false);
@@ -273,8 +309,8 @@ export default function SettingsPage() {
     }
   };
 
-  // 프로필 이미지 업로드 처리
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 파일 선택 시 크롭 모달 열기
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -291,10 +327,80 @@ export default function SettingsPage() {
       return;
     }
 
+    // 파일을 Data URL로 변환하여 크롭 모달에 표시
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setSelectedFile(file);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setShowCropModal(true);
+    };
+    reader.readAsDataURL(file);
+
+    // input 초기화
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // 크롭 완료 콜백
+  const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  // 크롭된 이미지를 Blob으로 변환
+  const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<Blob> => {
+    const image = new Image();
+    image.src = imageSrc;
+    await new Promise((resolve) => {
+      image.onload = resolve;
+    });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas context not available");
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    );
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Canvas is empty"));
+        },
+        "image/jpeg",
+        0.95
+      );
+    });
+  };
+
+  // 크롭 후 업로드
+  const handleCropAndUpload = async () => {
+    if (!cropImageSrc || !croppedAreaPixels) return;
+
     setIsUploadingImage(true);
+    setShowCropModal(false);
+
     try {
+      // 크롭된 이미지 생성
+      const croppedBlob = await getCroppedImg(cropImageSrc, croppedAreaPixels);
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", croppedBlob, "profile.jpg");
 
       const res = await fetch("/api/users/profile-image", {
         method: "POST",
@@ -308,15 +414,22 @@ export default function SettingsPage() {
       }
 
       setProfileImage(data.profileImage);
+      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       toast.success("프로필 이미지가 변경되었습니다.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
     } finally {
       setIsUploadingImage(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      setCropImageSrc(null);
+      setSelectedFile(null);
     }
+  };
+
+  // 크롭 모달 닫기
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setCropImageSrc(null);
+    setSelectedFile(null);
   };
 
   // 프로필 이미지 삭제 처리
@@ -334,6 +447,7 @@ export default function SettingsPage() {
       }
 
       setProfileImage(null);
+      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       toast.success("프로필 이미지가 삭제되었습니다.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "이미지 삭제에 실패했습니다.");
@@ -441,11 +555,10 @@ export default function SettingsPage() {
                   <div className="relative">
                     <div className="w-20 h-20 bg-[var(--primary)]/10 rounded-full flex items-center justify-center overflow-hidden">
                       {profileImage ? (
-                        <Image
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
                           src={profileImage}
                           alt="프로필 이미지"
-                          width={80}
-                          height={80}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -465,7 +578,7 @@ export default function SettingsPage() {
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/png,image/gif,image/webp"
-                      onChange={handleImageUpload}
+                      onChange={handleFileSelect}
                       className="hidden"
                     />
                     <button
@@ -898,13 +1011,44 @@ export default function SettingsPage() {
                         <div className="flex items-center gap-4">
                           <HardDrive className="w-8 h-8 text-[var(--primary)]" />
                           <div>
-                            <p className="font-medium text-[var(--text-primary)]">{backup.fileName}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-[var(--text-primary)]">{backup.fileName}</p>
+                              {backup.checksumValid !== undefined && (
+                                backup.checksumValid ? (
+                                  <span className="flex items-center gap-1 text-xs text-[var(--success)]">
+                                    <CheckCircle className="w-3 h-3" />
+                                    검증됨
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-xs text-[var(--warning)]">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    검증 필요
+                                  </span>
+                                )
+                              )}
+                              {backup.metadata?.type && (
+                                <span className={`badge text-xs ${
+                                  backup.metadata.type === "STARTUP" ? "badge-info" :
+                                  backup.metadata.type === "SCHEDULED" ? "badge-success" :
+                                  backup.metadata.type === "PRE_RESTORE" ? "badge-warning" :
+                                  "badge-secondary"
+                                }`}>
+                                  {backup.metadata.type === "STARTUP" ? "시작" :
+                                   backup.metadata.type === "SCHEDULED" ? "자동" :
+                                   backup.metadata.type === "PRE_RESTORE" ? "복원전" :
+                                   backup.metadata.type === "manual" ? "수동" : backup.metadata.type}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 {new Date(backup.createdAt).toLocaleString("ko-KR")}
                               </span>
                               <span>{backup.sizeFormatted}</span>
+                              {backup.metadata?.recordCounts?.total && (
+                                <span>{backup.metadata.recordCounts.total.toLocaleString()} 레코드</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1155,6 +1299,67 @@ export default function SettingsPage() {
             </button>
             <button onClick={handleSaveSlack} className="btn-primary">
               저장
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 이미지 크롭 모달 */}
+      <Modal
+        isOpen={showCropModal}
+        onClose={handleCropCancel}
+        title="프로필 이미지 편집"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {cropImageSrc && (
+            <>
+              <div className="relative w-full h-80 bg-black rounded-lg overflow-hidden">
+                <Cropper
+                  image={cropImageSrc}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
+              </div>
+
+              {/* 줌 컨트롤 */}
+              <div className="flex items-center gap-4 px-4">
+                <ZoomOut className="w-5 h-5 text-[var(--text-muted)]" />
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 h-2 bg-[var(--gray-200)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
+                />
+                <ZoomIn className="w-5 h-5 text-[var(--text-muted)]" />
+              </div>
+
+              <p className="text-sm text-[var(--text-muted)] text-center">
+                이미지를 드래그하여 위치를 조정하고, 슬라이더로 확대/축소하세요.
+              </p>
+            </>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--glass-border)]">
+            <button onClick={handleCropCancel} className="btn-secondary">
+              취소
+            </button>
+            <button
+              onClick={handleCropAndUpload}
+              disabled={isUploadingImage}
+              className="btn-primary flex items-center gap-2"
+            >
+              {isUploadingImage && <Loader2 className="w-4 h-4 animate-spin" />}
+              적용
             </button>
           </div>
         </div>

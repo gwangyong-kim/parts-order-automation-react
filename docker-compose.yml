@@ -27,10 +27,31 @@ services:
       - AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_NAME=PartSync
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      # Backup settings
+      - BACKUP_ON_STARTUP=${BACKUP_ON_STARTUP:-true}
+      - BACKUP_MAX_COUNT=${BACKUP_MAX_COUNT:-30}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - RUN_MIGRATIONS=${RUN_MIGRATIONS:-false}
+      # Cloud backup (optional)
+      - BACKUP_CLOUD_PROVIDER=${BACKUP_CLOUD_PROVIDER:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      # Backup encryption (optional)
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:-}
+      # Notifications (optional)
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
     user: "1001:1001"
     volumes:
       # Persist SQLite database
       - partsync-data:/app/data
+      # Persist backups to host machine (survives volume deletion)
+      - ./backups:/app/data/backups
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s

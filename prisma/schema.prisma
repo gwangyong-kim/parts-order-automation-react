@@ -630,3 +630,66 @@ model PickingItem {
   @@index([status])
   @@map("picking_items")
 }
+
+// ==================== Backup Management ====================
+
+model BackupHistory {
+  id           Int       @id @default(autoincrement())
+  fileName     String    @unique @map("file_name")
+  fileSize     Int       @map("file_size")
+  checksum     String?   // SHA-256 checksum
+  backupType   String    @default("MANUAL") @map("backup_type") // MANUAL, SCHEDULED, PRE_RESTORE, STARTUP
+  status       String    @default("COMPLETED") // COMPLETED, FAILED, IN_PROGRESS
+  duration     Int?      // Backup duration in milliseconds
+  recordCounts String?   @map("record_counts") // JSON string of table record counts
+  appVersion   String?   @map("app_version")
+  description  String?
+  createdBy    String?   @map("created_by")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([backupType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("backup_history")
+}
+
+model BackupSchedule {
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  cronExpression  String    @map("cron_expression") // e.g., "0 0 * * *" for daily at midnight
+  retentionCount  Int       @default(30) @map("retention_count") // Max backups to keep
+  isActive        Boolean   @default(true) @map("is_active")
+  lastRunAt       DateTime? @map("last_run_at")
+  nextRunAt       DateTime? @map("next_run_at")
+  lastStatus      String?   @map("last_status") // SUCCESS, FAILED
+  lastError       String?   @map("last_error")
+  createdBy       String?   @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("backup_schedules")
+}
+
+model BackupSettings {
+  id                    Int      @id @default(autoincrement())
+  autoBackupEnabled     Boolean  @default(false) @map("auto_backup_enabled")
+  backupFrequency       String   @default("DAILY") @map("backup_frequency") // HOURLY, DAILY, WEEKLY
+  backupTime            String   @default("00:00") @map("backup_time") // HH:mm format
+  retentionDays         Int      @default(30) @map("retention_days")
+  maxBackupCount        Int      @default(30) @map("max_backup_count")
+  cloudBackupEnabled    Boolean  @default(false) @map("cloud_backup_enabled")
+  cloudProvider         String?  @map("cloud_provider") // S3, GCS
+  cloudBucket           String?  @map("cloud_bucket")
+  encryptionEnabled     Boolean  @default(false) @map("encryption_enabled")
+  notifyOnSuccess       Boolean  @default(false) @map("notify_on_success")
+  notifyOnFailure       Boolean  @default(true) @map("notify_on_failure")
+  slackWebhookUrl       String?  @map("slack_webhook_url")
+  emailNotification     String?  @map("email_notification")
+  diskThresholdGb       Int      @default(5) @map("disk_threshold_gb")
+  updatedBy             String?  @map("updated_by")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("backup_settings")
+}
