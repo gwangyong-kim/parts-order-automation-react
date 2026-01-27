@@ -17,7 +17,6 @@ import {
   BarChart3,
   Users,
   Settings,
-  Layers,
   Upload,
   Map,
   Layout,
@@ -100,13 +99,12 @@ export default function Sidebar() {
     <aside className="glass-sidebar fixed left-0 top-0 z-40 h-screen w-64 flex flex-col">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-        <div className="sidebar-logo w-10 h-10 rounded-xl flex items-center justify-center">
-          <Layers className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-white tracking-tight">PartSync</h1>
-          <p className="text-xs text-white/50">MRP System</p>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.svg"
+          alt="glluga"
+          className="h-8 w-auto"
+        />
       </div>
 
       {/* Navigation */}
