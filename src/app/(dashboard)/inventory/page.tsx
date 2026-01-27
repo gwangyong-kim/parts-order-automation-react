@@ -30,9 +30,10 @@ interface InventoryItem {
 }
 
 async function fetchInventory(): Promise<InventoryItem[]> {
-  const res = await fetch("/api/inventory");
+  const res = await fetch("/api/inventory?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch inventory");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 export default function InventoryPage() {
@@ -220,18 +221,18 @@ export default function InventoryPage() {
       {/* Inventory Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">파츠품번</th>
-                <th className="table-header">파츠명</th>
-                <th className="table-header">단위</th>
-                <th className="table-header text-right">현재고</th>
-                <th className="table-header text-right">예약</th>
-                <th className="table-header text-right">가용재고</th>
-                <th className="table-header text-right">안전재고</th>
-                <th className="table-header">상태</th>
-                <th className="table-header">최종갱신</th>
+                <th className="table-header table-col-code">파츠품번</th>
+                <th className="table-header table-col-name">파츠명</th>
+                <th className="table-header table-col-short">단위</th>
+                <th className="table-header text-right table-col-qty">현재고</th>
+                <th className="table-header text-right table-col-qty">예약</th>
+                <th className="table-header text-right table-col-qty">가용재고</th>
+                <th className="table-header text-right table-col-qty">안전재고</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header table-col-date">최종갱신</th>
               </tr>
             </thead>
             <tbody>
@@ -252,29 +253,32 @@ export default function InventoryPage() {
                         isLowStock ? "bg-[var(--danger)]/5" : ""
                       }`}
                     >
-                      <td className="table-cell font-medium">
+                      <td className="table-cell font-medium table-col-code">
                         <Link
                           href="/parts"
-                          className="text-[var(--primary)] hover:underline"
+                          className="text-[var(--primary)] hover:underline table-truncate block"
+                          title={item.part.partNumber}
                         >
                           {item.part.partNumber}
                         </Link>
                       </td>
-                      <td className="table-cell">{item.part.partName}</td>
-                      <td className="table-cell">{item.part.unit}</td>
-                      <td className="table-cell text-right font-medium tabular-nums">
+                      <td className="table-cell table-col-name">
+                        <span className="table-truncate block" title={item.part.partName}>{item.part.partName}</span>
+                      </td>
+                      <td className="table-cell table-col-short">{item.part.unit}</td>
+                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
                         {item.currentQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums">
+                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
                         {item.reservedQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-right font-medium tabular-nums">
+                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
                         {item.availableQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums">
+                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
                         {item.part.safetyStock.toLocaleString()}
                       </td>
-                      <td className="table-cell">
+                      <td className="table-cell table-col-status">
                         {isLowStock ? (
                           <span className="badge badge-danger flex items-center gap-1 w-fit">
                             <TrendingDown className="w-3 h-3" />
@@ -287,7 +291,7 @@ export default function InventoryPage() {
                           </span>
                         )}
                       </td>
-                      <td className="table-cell text-[var(--text-secondary)]">
+                      <td className="table-cell text-[var(--text-secondary)] table-col-date">
                         {new Date(item.updatedAt).toLocaleDateString("ko-KR")}
                       </td>
                     </tr>

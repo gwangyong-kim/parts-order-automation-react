@@ -434,17 +434,17 @@ export default function OrdersPage() {
       {/* Orders Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">발주번호</th>
-                <th className="table-header">공급업체</th>
-                <th className="table-header">발주일</th>
-                <th className="table-header">입고예정일</th>
-                <th className="table-header">품목수</th>
-                <th className="table-header text-right">금액</th>
-                <th className="table-header">상태</th>
-                <th className="table-header text-center">작업</th>
+                <th className="table-header table-col-code">발주번호</th>
+                <th className="table-header table-col-name">공급업체</th>
+                <th className="table-header table-col-date">발주일</th>
+                <th className="table-header table-col-date">입고예정일</th>
+                <th className="table-header table-col-qty">품목수</th>
+                <th className="table-header text-right table-col-amount-lg">금액</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -471,19 +471,21 @@ export default function OrdersPage() {
                     key={order.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium">
+                    <td className="table-cell font-medium table-col-code">
                       <Link
                         href={`/orders/${order.id}`}
-                        className="text-[var(--primary)] hover:underline"
+                        className="text-[var(--primary)] hover:underline table-truncate block"
+                        title={order.orderNumber}
                       >
                         {order.orderNumber}
                       </Link>
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-name">
                       {order.supplier ? (
                         <Link
                           href="/suppliers"
-                          className="text-[var(--primary)] hover:underline"
+                          className="text-[var(--primary)] hover:underline table-truncate block"
+                          title={order.supplier.name}
                         >
                           {order.supplier.name}
                         </Link>
@@ -491,24 +493,24 @@ export default function OrdersPage() {
                         "-"
                       )}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-date">
                       {new Date(order.orderDate).toLocaleDateString("ko-KR")}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-date">
                       {order.expectedDate
                         ? new Date(order.expectedDate).toLocaleDateString("ko-KR")
                         : "-"}
                     </td>
-                    <td className="table-cell">{order.items.length}개</td>
-                    <td className="table-cell text-right font-medium tabular-nums">
+                    <td className="table-cell table-col-qty">{order.items.length}개</td>
+                    <td className="table-cell text-right font-medium tabular-nums table-col-amount-lg">
                       ₩{order.totalAmount.toLocaleString()}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-status">
                       <span className={`badge ${statusColors[order.status] || "badge-secondary"}`}>
                         {statusLabels[order.status] || order.status}
                       </span>
                     </td>
-                    <td className="table-cell text-center">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
                         <Link
                           href={`/orders/${order.id}`}

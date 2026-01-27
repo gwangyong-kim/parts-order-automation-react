@@ -101,9 +101,10 @@ function mapApiToSalesOrder(api: ApiSalesOrder): SalesOrder {
 }
 
 async function fetchSalesOrders(): Promise<SalesOrder[]> {
-  const res = await fetch("/api/sales-orders");
+  const res = await fetch("/api/sales-orders?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch sales orders");
-  const data: ApiSalesOrder[] = await res.json();
+  const result = await res.json();
+  const data: ApiSalesOrder[] = result.data;
   return data.map(mapApiToSalesOrder);
 }
 
@@ -458,18 +459,18 @@ export default function SalesOrdersPage() {
       {/* Orders Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">수주번호</th>
-                <th className="table-header">사업부</th>
-                <th className="table-header">담당자</th>
-                <th className="table-header">프로젝트</th>
-                <th className="table-header">제품</th>
-                <th className="table-header">수주일</th>
-                <th className="table-header">납기일</th>
-                <th className="table-header">상태</th>
-                <th className="table-header text-center">작업</th>
+                <th className="table-header table-col-code">수주번호</th>
+                <th className="table-header table-col-short">사업부</th>
+                <th className="table-header table-col-short">담당자</th>
+                <th className="table-header table-col-name">프로젝트</th>
+                <th className="table-header table-col-name-lg">제품</th>
+                <th className="table-header table-col-date">수주일</th>
+                <th className="table-header table-col-date">납기일</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -496,24 +497,27 @@ export default function SalesOrdersPage() {
                     key={order.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium">
+                    <td className="table-cell font-medium table-col-code">
                       <Link
                         href={`/sales-orders/${order.id}`}
-                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                        className="text-[var(--primary)] hover:underline table-truncate block"
+                        title={order.orderNumber}
                       >
                         {order.orderNumber}
                       </Link>
                     </td>
-                    <td className="table-cell">{order.division || "-"}</td>
-                    <td className="table-cell">{order.manager || "-"}</td>
-                    <td className="table-cell">{order.project || "-"}</td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-short">{order.division || "-"}</td>
+                    <td className="table-cell table-col-short">{order.manager || "-"}</td>
+                    <td className="table-cell table-col-name">
+                      <span className="table-truncate block" title={order.project || ""}>{order.project || "-"}</span>
+                    </td>
+                    <td className="table-cell table-col-name-lg">
                       {order.items.length > 0 ? (
                         <div className="text-sm">
                           {order.items.slice(0, 2).map((item, idx) => (
                             <div key={idx} className="flex items-center gap-1">
-                              <span className="font-medium">{item.productCode || item.productName || `제품${item.productId}`}</span>
-                              <span className="text-[var(--text-muted)]">x{item.orderQty}</span>
+                              <span className="font-medium table-truncate" title={item.productCode || item.productName || `제품${item.productId}`}>{item.productCode || item.productName || `제품${item.productId}`}</span>
+                              <span className="text-[var(--text-muted)] flex-shrink-0">x{item.orderQty}</span>
                             </div>
                           ))}
                           {order.items.length > 2 && (
@@ -524,21 +528,21 @@ export default function SalesOrdersPage() {
                         <span className="text-[var(--text-muted)]">-</span>
                       )}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-date">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {new Date(order.orderDate).toLocaleDateString("ko-KR")}
                       </span>
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-date">
                       {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString("ko-KR") : "-"}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-status">
                       <span className={`badge ${statusColors[order.status] || "badge-secondary"}`}>
                         {statusLabels[order.status] || order.status}
                       </span>
                     </td>
-                    <td className="table-cell text-center">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleEdit(order)}

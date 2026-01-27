@@ -20,9 +20,10 @@ import { useToast } from "@/components/ui/Toast";
 import type { Supplier } from "@/types/entities";
 
 async function fetchSuppliers(): Promise<Supplier[]> {
-  const res = await fetch("/api/suppliers");
+  const res = await fetch("/api/suppliers?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch suppliers");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function createSupplier(data: Partial<Supplier>): Promise<Supplier> {
@@ -294,17 +295,17 @@ export default function SuppliersPage() {
       {/* Suppliers Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">업체코드</th>
-                <th className="table-header">업체명</th>
-                <th className="table-header">담당자</th>
-                <th className="table-header">연락처</th>
-                <th className="table-header">이메일</th>
-                <th className="table-header">주소</th>
-                <th className="table-header">상태</th>
-                <th className="table-header text-center">작업</th>
+                <th className="table-header table-col-code">업체코드</th>
+                <th className="table-header table-col-name">업체명</th>
+                <th className="table-header table-col-short">담당자</th>
+                <th className="table-header table-col-code">연락처</th>
+                <th className="table-header table-col-name">이메일</th>
+                <th className="table-header table-col-desc">주소</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -331,33 +332,37 @@ export default function SuppliersPage() {
                     key={supplier.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium font-mono">{supplier.code}</td>
-                    <td className="table-cell font-medium">{supplier.name}</td>
-                    <td className="table-cell">{supplier.contactPerson || "-"}</td>
-                    <td className="table-cell">
+                    <td className="table-cell font-medium font-mono table-col-code">
+                      <span className="table-truncate block" title={supplier.code}>{supplier.code}</span>
+                    </td>
+                    <td className="table-cell font-medium table-col-name">
+                      <span className="table-truncate block" title={supplier.name}>{supplier.name}</span>
+                    </td>
+                    <td className="table-cell table-col-short">{supplier.contactPerson || "-"}</td>
+                    <td className="table-cell table-col-code">
                       {supplier.phone ? (
                         <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {supplier.phone}
+                          <Phone className="w-3 h-3 flex-shrink-0" />
+                          <span className="table-truncate">{supplier.phone}</span>
                         </span>
                       ) : (
                         "-"
                       )}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-name">
                       {supplier.email ? (
                         <span className="flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
-                          {supplier.email}
+                          <Mail className="w-3 h-3 flex-shrink-0" />
+                          <span className="table-truncate" title={supplier.email}>{supplier.email}</span>
                         </span>
                       ) : (
                         "-"
                       )}
                     </td>
-                    <td className="table-cell max-w-xs truncate">
-                      {supplier.address || "-"}
+                    <td className="table-cell table-col-desc">
+                      <span className="table-truncate block" title={supplier.address || ""}>{supplier.address || "-"}</span>
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-status">
                       <span
                         className={`badge ${
                           supplier.isActive ? "badge-success" : "badge-secondary"
@@ -366,7 +371,7 @@ export default function SuppliersPage() {
                         {supplier.isActive ? "활성" : "비활성"}
                       </span>
                     </td>
-                    <td className="table-cell text-center">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleEdit(supplier)}

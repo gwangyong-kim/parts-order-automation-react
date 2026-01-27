@@ -33,10 +33,21 @@ interface User {
   createdAt: string;
 }
 
+interface UsersResponse {
+  data: User[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 async function fetchUsers(): Promise<User[]> {
-  const res = await fetch("/api/users");
+  const res = await fetch("/api/users?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch users");
-  return res.json();
+  const result: UsersResponse = await res.json();
+  return result.data;
 }
 
 async function createUser(data: Partial<User>): Promise<User> {
@@ -410,17 +421,17 @@ export default function UsersPage() {
       {/* Users Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">사용자</th>
-                <th className="table-header">아이디</th>
-                <th className="table-header">역할</th>
-                <th className="table-header">부서</th>
-                <th className="table-header">상태</th>
-                <th className="table-header">마지막 로그인</th>
-                <th className="table-header">등록일</th>
-                <th className="table-header text-center">작업</th>
+                <th className="table-header table-col-name-lg">사용자</th>
+                <th className="table-header table-col-code">아이디</th>
+                <th className="table-header table-col-status">역할</th>
+                <th className="table-header table-col-short">부서</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header table-col-datetime">마지막 로그인</th>
+                <th className="table-header table-col-date">등록일</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -447,33 +458,35 @@ export default function UsersPage() {
                     key={user.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[var(--primary)]/10 rounded-full flex items-center justify-center">
+                    <td className="table-cell table-col-name-lg">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-[var(--primary)]/10 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="font-semibold text-[var(--primary)]">
                             {user.name.charAt(0)}
                           </span>
                         </div>
-                        <div>
-                          <p className="font-medium text-[var(--text-primary)]">{user.name}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-[var(--text-primary)] table-truncate" title={user.name}>{user.name}</p>
                           {user.email && (
                             <p className="text-sm text-[var(--text-muted)] flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {user.email}
+                              <Mail className="w-3 h-3 flex-shrink-0" />
+                              <span className="table-truncate" title={user.email}>{user.email}</span>
                             </p>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="table-cell font-mono">{user.username}</td>
-                    <td className="table-cell">
+                    <td className="table-cell font-mono table-col-code">
+                      <span className="table-truncate block" title={user.username}>{user.username}</span>
+                    </td>
+                    <td className="table-cell table-col-status">
                       <span className={`badge ${roleColors[user.role]} flex items-center gap-1 w-fit`}>
                         <Shield className="w-3 h-3" />
                         {roleLabels[user.role]}
                       </span>
                     </td>
-                    <td className="table-cell">{user.department || "-"}</td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-short">{user.department || "-"}</td>
+                    <td className="table-cell table-col-status">
                       {user.isActive ? (
                         <span className="badge badge-success flex items-center gap-1 w-fit">
                           <CheckCircle className="w-3 h-3" />
@@ -486,7 +499,7 @@ export default function UsersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="table-cell text-[var(--text-secondary)]">
+                    <td className="table-cell text-[var(--text-secondary)] table-col-datetime">
                       {user.lastLogin ? (
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
@@ -496,10 +509,10 @@ export default function UsersPage() {
                         "-"
                       )}
                     </td>
-                    <td className="table-cell text-[var(--text-secondary)]">
+                    <td className="table-cell text-[var(--text-secondary)] table-col-date">
                       {new Date(user.createdAt).toLocaleDateString("ko-KR")}
                     </td>
-                    <td className="table-cell text-center">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleEdit(user)}

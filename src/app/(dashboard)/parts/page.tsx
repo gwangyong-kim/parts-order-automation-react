@@ -38,9 +38,10 @@ const partUploadFields = [
 ];
 
 async function fetchParts(): Promise<Part[]> {
-  const res = await fetch("/api/parts");
+  const res = await fetch("/api/parts?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch parts");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function fetchCategories(): Promise<Category[]> {
@@ -420,20 +421,20 @@ export default function PartsPage() {
       {/* Parts Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">파츠번호</th>
-                <th className="table-header">파츠명</th>
-                <th className="table-header">규격</th>
-                <th className="table-header">저장위치</th>
-                <th className="table-header">단위</th>
-                <th className="table-header text-right">단가</th>
-                <th className="table-header text-right">안전재고</th>
-                <th className="table-header">카테고리</th>
-                <th className="table-header">공급업체</th>
-                <th className="table-header">상태</th>
-                <th className="table-header text-center">작업</th>
+                <th className="table-header table-col-code">파츠번호</th>
+                <th className="table-header table-col-name">파츠명</th>
+                <th className="table-header table-col-desc">규격</th>
+                <th className="table-header table-col-short">저장위치</th>
+                <th className="table-header table-col-short">단위</th>
+                <th className="table-header text-right table-col-amount">단가</th>
+                <th className="table-header text-right table-col-qty">안전재고</th>
+                <th className="table-header table-col-status">카테고리</th>
+                <th className="table-header table-col-name">공급업체</th>
+                <th className="table-header table-col-status">상태</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -460,35 +461,40 @@ export default function PartsPage() {
                     key={part.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium font-mono">
+                    <td className="table-cell font-medium font-mono table-col-code">
                       <Link
                         href={`/parts/${part.id}`}
-                        className="text-[var(--primary)] hover:underline cursor-pointer"
+                        className="text-[var(--primary)] hover:underline table-truncate block"
+                        title={part.partNumber}
                       >
                         {part.partNumber}
                       </Link>
                     </td>
-                    <td className="table-cell">{part.partName}</td>
-                    <td className="table-cell text-[var(--text-secondary)] max-w-xs truncate">
-                      {part.description || "-"}
+                    <td className="table-cell table-col-name">
+                      <span className="table-truncate block" title={part.partName}>{part.partName}</span>
                     </td>
-                    <td className="table-cell font-mono text-sm">
+                    <td className="table-cell text-[var(--text-secondary)] table-col-desc">
+                      <span className="table-truncate block" title={part.description || ""}>{part.description || "-"}</span>
+                    </td>
+                    <td className="table-cell font-mono text-sm table-col-short">
                       {part.storageLocation || "-"}
                     </td>
-                    <td className="table-cell">{part.unit}</td>
-                    <td className="table-cell text-right tabular-nums">
+                    <td className="table-cell table-col-short">{part.unit}</td>
+                    <td className="table-cell text-right tabular-nums table-col-amount">
                       ₩{part.unitPrice.toLocaleString()}
                     </td>
-                    <td className="table-cell text-right tabular-nums">{part.safetyStock}</td>
-                    <td className="table-cell">
+                    <td className="table-cell text-right tabular-nums table-col-qty">{part.safetyStock}</td>
+                    <td className="table-cell table-col-status">
                       {part.category ? (
                         <span className="badge badge-info">{part.category.name}</span>
                       ) : (
                         "-"
                       )}
                     </td>
-                    <td className="table-cell">{part.supplier?.name || "-"}</td>
-                    <td className="table-cell">
+                    <td className="table-cell table-col-name">
+                      <span className="table-truncate block" title={part.supplier?.name || ""}>{part.supplier?.name || "-"}</span>
+                    </td>
+                    <td className="table-cell table-col-status">
                       <span
                         className={`badge ${
                           part.isActive ? "badge-success" : "badge-secondary"
@@ -497,7 +503,7 @@ export default function PartsPage() {
                         {part.isActive ? "활성" : "비활성"}
                       </span>
                     </td>
-                    <td className="table-cell text-center">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleEdit(part)}

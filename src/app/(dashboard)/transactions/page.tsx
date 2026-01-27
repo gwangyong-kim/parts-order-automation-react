@@ -65,9 +65,10 @@ interface TransactionInput {
 }
 
 async function fetchTransactions(): Promise<Transaction[]> {
-  const res = await fetch("/api/transactions");
+  const res = await fetch("/api/transactions?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch transactions");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function createTransaction(data: Partial<TransactionInput>): Promise<Transaction> {
@@ -487,20 +488,20 @@ export default function TransactionsPage() {
       {/* Transactions Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-bordered">
             <thead>
               <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header whitespace-nowrap">거래코드</th>
-                <th className="table-header text-center whitespace-nowrap">유형</th>
-                <th className="table-header">파츠</th>
-                <th className="table-header text-right whitespace-nowrap">수량</th>
-                <th className="table-header text-right whitespace-nowrap">이전</th>
-                <th className="table-header text-right whitespace-nowrap">이후</th>
-                <th className="table-header text-center whitespace-nowrap">참조</th>
-                <th className="table-header text-center whitespace-nowrap">처리자</th>
-                <th className="table-header whitespace-nowrap">비고</th>
-                <th className="table-header text-right whitespace-nowrap">일시</th>
-                <th className="table-header text-center whitespace-nowrap">작업</th>
+                <th className="table-header table-col-code">거래코드</th>
+                <th className="table-header text-center table-col-status">유형</th>
+                <th className="table-header table-col-name-lg">파츠</th>
+                <th className="table-header text-right table-col-qty">수량</th>
+                <th className="table-header text-right table-col-qty">이전</th>
+                <th className="table-header text-right table-col-qty">이후</th>
+                <th className="table-header text-center table-col-short">참조</th>
+                <th className="table-header text-center table-col-short">처리자</th>
+                <th className="table-header table-col-desc">비고</th>
+                <th className="table-header text-right table-col-datetime">일시</th>
+                <th className="table-header text-center table-col-action">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -531,16 +532,17 @@ export default function TransactionsPage() {
                       className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors cursor-pointer"
                       onClick={() => window.location.href = `/transactions/${tx.id}`}
                     >
-                      <td className="table-cell">
+                      <td className="table-cell table-col-code">
                         <Link
                           href={`/transactions/${tx.id}`}
-                          className="font-medium font-mono text-xs text-[var(--primary)] hover:underline break-all"
+                          className="font-medium font-mono text-xs text-[var(--primary)] hover:underline table-truncate block"
                           onClick={(e) => e.stopPropagation()}
+                          title={tx.transactionCode}
                         >
                           {tx.transactionCode}
                         </Link>
                       </td>
-                      <td className="table-cell text-center">
+                      <td className="table-cell text-center table-col-status">
                         <span
                           className={`badge ${typeColors[tx.transactionType] || "badge-secondary"} inline-flex items-center gap-1`}
                         >
@@ -548,19 +550,20 @@ export default function TransactionsPage() {
                           {typeLabels[tx.transactionType] || tx.transactionType}
                         </span>
                       </td>
-                      <td className="table-cell max-w-[250px]">
+                      <td className="table-cell table-col-name-lg">
                         <div className="min-w-0">
                           <Link
                             href={`/parts/${tx.part.id}`}
-                            className="font-medium text-[var(--primary)] hover:underline block truncate"
+                            className="font-medium text-[var(--primary)] hover:underline table-truncate block"
                             onClick={(e) => e.stopPropagation()}
+                            title={partCode}
                           >
                             {partCode}
                           </Link>
-                          <p className="text-sm text-[var(--text-muted)] truncate" title={tx.part.partName}>{tx.part.partName}</p>
+                          <p className="text-sm text-[var(--text-muted)] table-truncate" title={tx.part.partName}>{tx.part.partName}</p>
                         </div>
                       </td>
-                      <td className="table-cell text-right tabular-nums">
+                      <td className="table-cell text-right tabular-nums table-col-qty">
                         <span
                           className={`font-bold ${
                             tx.transactionType === "INBOUND"
@@ -574,23 +577,23 @@ export default function TransactionsPage() {
                           {tx.quantity.toLocaleString()}
                         </span>
                       </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums">
+                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
                         {tx.beforeQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-right font-medium tabular-nums">
+                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
                         {tx.afterQty.toLocaleString()}
                       </td>
-                      <td className="table-cell text-center text-[var(--text-secondary)]">
+                      <td className="table-cell text-center text-[var(--text-secondary)] table-col-short">
                         {tx.referenceType || "-"}
                       </td>
-                      <td className="table-cell text-center">{tx.createdBy?.name || "-"}</td>
-                      <td className="table-cell text-sm text-[var(--text-secondary)] max-w-[150px]">
-                        <span className="block truncate" title={tx.notes || ""}>{tx.notes || "-"}</span>
+                      <td className="table-cell text-center table-col-short">{tx.createdBy?.name || "-"}</td>
+                      <td className="table-cell text-sm text-[var(--text-secondary)] table-col-desc">
+                        <span className="table-truncate block" title={tx.notes || ""}>{tx.notes || "-"}</span>
                       </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] text-sm whitespace-nowrap">
+                      <td className="table-cell text-right text-[var(--text-secondary)] text-sm whitespace-nowrap table-col-datetime">
                         {new Date(tx.createdAt).toLocaleString("ko-KR")}
                       </td>
-                      <td className="table-cell text-center">
+                      <td className="table-cell text-center table-col-action">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={(e) => handleEdit(tx, e)}

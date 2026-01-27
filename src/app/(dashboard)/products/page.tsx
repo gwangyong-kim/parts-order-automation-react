@@ -90,9 +90,10 @@ const productUploadSheets = [
 ];
 
 async function fetchProducts(): Promise<Product[]> {
-  const res = await fetch("/api/products");
+  const res = await fetch("/api/products?pageSize=1000");
   if (!res.ok) throw new Error("Failed to fetch products");
-  return res.json();
+  const result = await res.json();
+  return result.data;
 }
 
 async function createProduct(data: Partial<Product>): Promise<Product> {
@@ -473,16 +474,16 @@ export default function ProductsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-bordered">
               <thead>
                 <tr className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">제품코드</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">제품명</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">카테고리</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">설명</th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">BOM 항목</th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">상태</th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">관리</th>
+                  <th className="table-header table-col-code">제품코드</th>
+                  <th className="table-header table-col-name">제품명</th>
+                  <th className="table-header table-col-status">카테고리</th>
+                  <th className="table-header table-col-desc">설명</th>
+                  <th className="table-header text-center table-col-qty">BOM 항목</th>
+                  <th className="table-header text-center table-col-status">상태</th>
+                  <th className="table-header text-center table-col-action">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -491,38 +492,39 @@ export default function ProductsPage() {
                     key={product.id}
                     className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]/50 transition-colors"
                   >
-                    <td className="px-6 py-4">
+                    <td className="table-cell table-col-code">
                       <Link
                         href={`/products/${product.id}`}
-                        className="font-mono text-sm text-[var(--primary)] hover:underline cursor-pointer"
+                        className="font-mono text-sm text-[var(--primary)] hover:underline table-truncate block"
+                        title={product.productCode}
                       >
                         {product.productCode}
                       </Link>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="font-medium text-[var(--text-primary)]">
+                    <td className="table-cell table-col-name">
+                      <span className="font-medium text-[var(--text-primary)] table-truncate block" title={product.productName || ""}>
                         {product.productName || "-"}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="table-cell table-col-status">
                       <span className="text-sm text-[var(--text-secondary)]">
                         {product.category || "-"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 max-w-xs">
-                      <span className="text-sm text-[var(--text-muted)] truncate block">
+                    <td className="table-cell table-col-desc">
+                      <span className="text-sm text-[var(--text-muted)] table-truncate block" title={product.description || ""}>
                         {product.description || "-"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="table-cell text-center table-col-qty">
                       <div className="flex items-center justify-center gap-1">
                         <Layers className="w-4 h-4 text-[var(--text-muted)]" />
-                        <span className="text-sm text-[var(--text-secondary)]">
+                        <span className="text-sm text-[var(--text-secondary)] tabular-nums">
                           {product.bomItems.length}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="table-cell text-center table-col-status">
                       <span
                         className={`badge ${
                           product.isActive ? "badge-success" : "badge-secondary"
@@ -531,7 +533,7 @@ export default function ProductsPage() {
                         {product.isActive ? "활성" : "비활성"}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleEdit(product)}

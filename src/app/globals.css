@@ -876,6 +876,110 @@ h1, h2, h3, h4, h5, h6, .heading {
   border-color: var(--danger-200);
 }
 
+/* 테이블 열 구분선 스타일 */
+.table-bordered th,
+.table-bordered td {
+  border-right: 1px solid var(--gray-200);
+}
+
+.table-bordered th:last-child,
+.table-bordered td:last-child {
+  border-right: none;
+}
+
+/* 테이블 컬럼 너비 통일 */
+
+/* 코드 필드 (파츠코드, 제품코드, 발주번호 등) */
+.table-col-code {
+  min-width: 120px;
+  max-width: 140px;
+  width: 140px;
+}
+
+/* 이름 필드 (파츠명, 제품명 등) */
+.table-col-name {
+  min-width: 120px;
+  max-width: 180px;
+  width: 180px;
+}
+
+/* 이름 필드 (더 넓은 버전) */
+.table-col-name-lg {
+  min-width: 150px;
+  max-width: 220px;
+  width: 220px;
+}
+
+/* 설명/규격/비고 필드 */
+.table-col-desc {
+  min-width: 100px;
+  max-width: 150px;
+  width: 150px;
+}
+
+/* 수량 컬럼 */
+.table-col-qty {
+  min-width: 70px;
+  max-width: 80px;
+  width: 80px;
+}
+
+/* 금액 컬럼 */
+.table-col-amount {
+  min-width: 90px;
+  max-width: 110px;
+  width: 100px;
+}
+
+/* 큰 금액 컬럼 */
+.table-col-amount-lg {
+  min-width: 110px;
+  max-width: 130px;
+  width: 120px;
+}
+
+/* 날짜 컬럼 */
+.table-col-date {
+  min-width: 90px;
+  max-width: 100px;
+  width: 100px;
+}
+
+/* 일시 컬럼 */
+.table-col-datetime {
+  min-width: 140px;
+  max-width: 160px;
+  width: 150px;
+}
+
+/* 작업 버튼 컬럼 */
+.table-col-action {
+  min-width: 70px;
+  max-width: 90px;
+  width: 80px;
+}
+
+/* 상태/뱃지 컬럼 */
+.table-col-status {
+  min-width: 70px;
+  max-width: 90px;
+  width: 80px;
+}
+
+/* 짧은 텍스트 (단위, 위치 등) */
+.table-col-short {
+  min-width: 60px;
+  max-width: 80px;
+  width: 70px;
+}
+
+/* 테이블 셀 텍스트 truncate 헬퍼 */
+.table-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==================== Modal Styles ==================== */
 .modal-backdrop {
   position: fixed;
@@ -1150,6 +1254,29 @@ h1, h2, h3, h4, h5, h6, .heading {
 /* ==================== Utilities ==================== */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ==================== Focus Visible ==================== */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+/* 다크 테마 요소용 */
+.glass-sidebar button:focus-visible,
+.glass-sidebar a:focus-visible {
+  outline-color: var(--primary-400);
 }
 
 /* ==================== Accessibility ==================== */
