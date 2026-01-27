@@ -57,12 +57,62 @@ EOF
     fi
 fi
 
-# Run Prisma migrations if enabled
-if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
-    echo "Running database migrations..."
-    npx prisma migrate deploy
-    echo "Migrations completed!"
-fi
+# Ensure backup tables exist (required for backup management features)
+echo "Ensuring backup tables exist..."
+sqlite3 /app/data/partsync.db "
+CREATE TABLE IF NOT EXISTS backup_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_name TEXT NOT NULL UNIQUE,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    checksum TEXT,
+    backup_type TEXT NOT NULL DEFAULT 'MANUAL',
+    status TEXT NOT NULL DEFAULT 'COMPLETED',
+    duration INTEGER,
+    record_counts TEXT,
+    app_version TEXT,
+    description TEXT,
+    created_by TEXT,
+    error_message TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS backup_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    auto_backup_enabled INTEGER NOT NULL DEFAULT 0,
+    backup_frequency TEXT NOT NULL DEFAULT 'DAILY',
+    backup_time TEXT NOT NULL DEFAULT '00:00',
+    retention_days INTEGER NOT NULL DEFAULT 30,
+    max_backup_count INTEGER NOT NULL DEFAULT 30,
+    cloud_backup_enabled INTEGER NOT NULL DEFAULT 0,
+    cloud_provider TEXT,
+    cloud_bucket TEXT,
+    encryption_enabled INTEGER NOT NULL DEFAULT 0,
+    notify_on_success INTEGER NOT NULL DEFAULT 0,
+    notify_on_failure INTEGER NOT NULL DEFAULT 1,
+    slack_webhook_url TEXT,
+    email_notification TEXT,
+    disk_threshold_gb INTEGER NOT NULL DEFAULT 5,
+    updated_by TEXT,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS backup_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    cron_expression TEXT NOT NULL,
+    retention_count INTEGER NOT NULL DEFAULT 30,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    last_run_at DATETIME,
+    next_run_at DATETIME,
+    last_status TEXT,
+    last_error TEXT,
+    created_by TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_backup_history_backup_type ON backup_history(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backup_history_status ON backup_history(status);
+CREATE INDEX IF NOT EXISTS idx_backup_history_created_at ON backup_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_backup_schedules_is_active ON backup_schedules(is_active);
+" 2>/dev/null || echo "Backup tables check completed"
 
 # Verify database integrity
 if [ -f "/app/data/partsync.db" ]; then
