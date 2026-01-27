@@ -27,6 +27,16 @@ import {
   ExternalLink,
   ZoomIn,
   ZoomOut,
+  Settings,
+  History,
+  Cloud,
+  CloudOff,
+  ToggleLeft,
+  ToggleRight,
+  Activity,
+  Timer,
+  Archive,
+  GitCompare,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -69,6 +79,52 @@ interface DbStats {
   };
 }
 
+interface BackupSettings {
+  id: number;
+  autoBackupEnabled: boolean;
+  backupFrequency: string;
+  backupTime: string;
+  retentionDays: number;
+  maxBackupCount: number;
+  cloudBackupEnabled: boolean;
+  cloudProvider: string | null;
+  encryptionEnabled: boolean;
+  notifyOnSuccess: boolean;
+  notifyOnFailure: boolean;
+  slackWebhookUrl: string | null;
+  diskThresholdGb: number;
+}
+
+interface BackupHistoryItem {
+  id: number;
+  fileName: string;
+  fileSize: number;
+  backupType: string;
+  status: string;
+  duration: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+interface DiskUsage {
+  backup: {
+    totalSize: number;
+    totalSizeFormatted: string;
+    fileCount: number;
+    oldestBackup: { name: string; date: string } | null;
+    newestBackup: { name: string; date: string } | null;
+  };
+  data: {
+    totalSize: number;
+    totalSizeFormatted: string;
+  };
+  threshold: {
+    limitGb: number;
+    isOverThreshold: boolean;
+    usagePercent: number;
+  };
+}
+
 const sections: SettingsSection[] = [
   { id: "profile", title: "프로필", icon: User },
   { id: "language", title: "언어 설정", icon: Globe },
@@ -94,6 +150,9 @@ export default function SettingsPage() {
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [cleanupDays, setCleanupDays] = useState(30);
+  const [showBackupSettingsModal, setShowBackupSettingsModal] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [compareBackup, setCompareBackup] = useState<string | null>(null);
 
   // 비밀번호 변경 상태
   const [currentPassword, setCurrentPassword] = useState("");
@@ -167,6 +226,32 @@ export default function SettingsPage() {
       return res.json();
     },
     enabled: activeSection === "system",
+  });
+
+  // 백업 설정 조회
+  const { data: backupSettingsData, isLoading: settingsLoading } = useQuery<{
+    settings: BackupSettings;
+    history: BackupHistoryItem[];
+    diskUsage: DiskUsage;
+  }>({
+    queryKey: ["backupSettings"],
+    queryFn: async () => {
+      const res = await fetch("/api/backup/settings");
+      if (!res.ok) throw new Error("Failed to fetch backup settings");
+      return res.json();
+    },
+    enabled: activeSection === "system",
+  });
+
+  // 백업 비교 데이터 조회
+  const { data: compareData, isLoading: compareLoading } = useQuery({
+    queryKey: ["backupCompare", compareBackup],
+    queryFn: async () => {
+      const res = await fetch(`/api/backup/compare?fileName=${compareBackup}`);
+      if (!res.ok) throw new Error("Failed to compare");
+      return res.json();
+    },
+    enabled: !!compareBackup && showCompareModal,
   });
 
   // 정리 미리보기
@@ -257,6 +342,26 @@ export default function SettingsPage() {
     },
     onError: () => {
       toast.error("데이터 정리에 실패했습니다.");
+    },
+  });
+
+  // 백업 설정 업데이트
+  const updateBackupSettingsMutation = useMutation({
+    mutationFn: async (settings: Partial<BackupSettings>) => {
+      const res = await fetch("/api/backup/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) throw new Error("Settings update failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("백업 설정이 저장되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["backupSettings"] });
+    },
+    onError: () => {
+      toast.error("설정 저장에 실패했습니다.");
     },
   });
 
@@ -975,11 +1080,178 @@ export default function SettingsPage() {
                 )}
               </div>
 
+              {/* 백업 설정 및 상태 대시보드 */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                    백업 설정 및 현황
+                  </h2>
+                  <button
+                    onClick={() => setShowBackupSettingsModal(true)}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    상세 설정
+                  </button>
+                </div>
+
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-[var(--primary)]" />
+                  </div>
+                ) : backupSettingsData ? (
+                  <div className="space-y-6">
+                    {/* 상태 카드 그리드 */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* 자동 백업 상태 */}
+                      <div className="p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-[var(--text-muted)]">자동 백업</span>
+                          <button
+                            onClick={() => updateBackupSettingsMutation.mutate({
+                              autoBackupEnabled: !backupSettingsData.settings.autoBackupEnabled
+                            })}
+                            disabled={updateBackupSettingsMutation.isPending}
+                            className="text-[var(--primary)]"
+                          >
+                            {backupSettingsData.settings.autoBackupEnabled ? (
+                              <ToggleRight className="w-6 h-6" />
+                            ) : (
+                              <ToggleLeft className="w-6 h-6 text-[var(--text-muted)]" />
+                            )}
+                          </button>
+                        </div>
+                        <p className={`text-sm font-medium ${backupSettingsData.settings.autoBackupEnabled ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
+                          {backupSettingsData.settings.autoBackupEnabled ? '활성화됨' : '비활성화'}
+                        </p>
+                        {backupSettingsData.settings.autoBackupEnabled && (
+                          <p className="text-xs text-[var(--text-muted)] mt-1">
+                            {backupSettingsData.settings.backupFrequency === 'HOURLY' ? '매시간' :
+                             backupSettingsData.settings.backupFrequency === 'DAILY' ? '매일' : '매주'}
+                            {' '}{backupSettingsData.settings.backupTime}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* 백업 파일 수 */}
+                      <div className="p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Archive className="w-4 h-4 text-[var(--primary)]" />
+                          <span className="text-sm text-[var(--text-muted)]">백업 파일</span>
+                        </div>
+                        <p className="text-2xl font-bold text-[var(--text-primary)]">
+                          {backupSettingsData.diskUsage.backup.fileCount}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          최대 {backupSettingsData.settings.maxBackupCount}개 보관
+                        </p>
+                      </div>
+
+                      {/* 디스크 사용량 */}
+                      <div className="p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <HardDrive className="w-4 h-4 text-[var(--info)]" />
+                          <span className="text-sm text-[var(--text-muted)]">백업 용량</span>
+                        </div>
+                        <p className="text-2xl font-bold text-[var(--text-primary)]">
+                          {backupSettingsData.diskUsage.backup.totalSizeFormatted}
+                        </p>
+                        <div className="mt-2">
+                          <div className="w-full h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                backupSettingsData.diskUsage.threshold.isOverThreshold
+                                  ? 'bg-[var(--danger)]'
+                                  : backupSettingsData.diskUsage.threshold.usagePercent > 80
+                                    ? 'bg-[var(--warning)]'
+                                    : 'bg-[var(--success)]'
+                              }`}
+                              style={{ width: `${Math.min(backupSettingsData.diskUsage.threshold.usagePercent, 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-[var(--text-muted)] mt-1">
+                            {backupSettingsData.diskUsage.threshold.usagePercent}% / {backupSettingsData.diskUsage.threshold.limitGb}GB
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 클라우드 백업 */}
+                      <div className="p-4 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                        <div className="flex items-center gap-2 mb-2">
+                          {backupSettingsData.settings.cloudBackupEnabled ? (
+                            <Cloud className="w-4 h-4 text-[var(--success)]" />
+                          ) : (
+                            <CloudOff className="w-4 h-4 text-[var(--text-muted)]" />
+                          )}
+                          <span className="text-sm text-[var(--text-muted)]">클라우드</span>
+                        </div>
+                        <p className={`text-sm font-medium ${backupSettingsData.settings.cloudBackupEnabled ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
+                          {backupSettingsData.settings.cloudBackupEnabled
+                            ? backupSettingsData.settings.cloudProvider?.toUpperCase() || '연결됨'
+                            : '미설정'}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                          {backupSettingsData.settings.encryptionEnabled ? '암호화 활성' : '암호화 비활성'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 최근 백업 히스토리 */}
+                    {backupSettingsData.history.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3 flex items-center gap-2">
+                          <History className="w-4 h-4" />
+                          최근 백업 이력
+                        </h3>
+                        <div className="space-y-2">
+                          {backupSettingsData.history.slice(0, 5).map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between p-3 rounded-lg bg-[var(--gray-50)] border border-[var(--gray-200)]"
+                            >
+                              <div className="flex items-center gap-3">
+                                {item.status === 'COMPLETED' ? (
+                                  <CheckCircle className="w-4 h-4 text-[var(--success)]" />
+                                ) : item.status === 'FAILED' ? (
+                                  <AlertTriangle className="w-4 h-4 text-[var(--danger)]" />
+                                ) : (
+                                  <Loader2 className="w-4 h-4 text-[var(--info)] animate-spin" />
+                                )}
+                                <div>
+                                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                                    {item.fileName}
+                                  </p>
+                                  <p className="text-xs text-[var(--text-muted)]">
+                                    {new Date(item.createdAt).toLocaleString('ko-KR')}
+                                    {item.duration && ` · ${item.duration}ms`}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`badge text-xs ${
+                                item.backupType === 'STARTUP' ? 'badge-info' :
+                                item.backupType === 'SCHEDULED' ? 'badge-success' :
+                                item.backupType === 'PRE_RESTORE' ? 'badge-warning' :
+                                'badge-secondary'
+                              }`}>
+                                {item.backupType === 'STARTUP' ? '시작' :
+                                 item.backupType === 'SCHEDULED' ? '자동' :
+                                 item.backupType === 'PRE_RESTORE' ? '복원전' :
+                                 item.backupType === 'MANUAL' ? '수동' : item.backupType}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
               {/* 백업 관리 */}
               <div className="glass-card p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                    백업 관리
+                    백업 파일 목록
                   </h2>
                   <div className="flex gap-2">
                     <button
@@ -1053,6 +1325,16 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setCompareBackup(backup.fileName);
+                              setShowCompareModal(true);
+                            }}
+                            className="p-2 hover:bg-[var(--gray-100)] rounded-lg transition-colors"
+                            title="현재 DB와 비교"
+                          >
+                            <GitCompare className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
                           <button
                             onClick={() => handleDownloadBackup(backup.fileName)}
                             className="p-2 hover:bg-[var(--gray-100)] rounded-lg transition-colors"
@@ -1360,6 +1642,356 @@ export default function SettingsPage() {
             >
               {isUploadingImage && <Loader2 className="w-4 h-4 animate-spin" />}
               적용
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 백업 상세 설정 모달 */}
+      <Modal
+        isOpen={showBackupSettingsModal}
+        onClose={() => setShowBackupSettingsModal(false)}
+        title="백업 상세 설정"
+        size="lg"
+      >
+        {backupSettingsData?.settings && (
+          <div className="space-y-6">
+            {/* 자동 백업 설정 */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Timer className="w-4 h-4" />
+                자동 백업 설정
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                    백업 주기
+                  </label>
+                  <select
+                    className="input w-full"
+                    value={backupSettingsData.settings.backupFrequency}
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ backupFrequency: e.target.value })}
+                  >
+                    <option value="HOURLY">매시간</option>
+                    <option value="DAILY">매일</option>
+                    <option value="WEEKLY">매주</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                    백업 시간
+                  </label>
+                  <input
+                    type="time"
+                    className="input w-full"
+                    value={backupSettingsData.settings.backupTime}
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ backupTime: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                    보관 기간 (일)
+                  </label>
+                  <input
+                    type="number"
+                    className="input w-full"
+                    value={backupSettingsData.settings.retentionDays}
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ retentionDays: parseInt(e.target.value) })}
+                    min={1}
+                    max={365}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                    최대 백업 수
+                  </label>
+                  <input
+                    type="number"
+                    className="input w-full"
+                    value={backupSettingsData.settings.maxBackupCount}
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ maxBackupCount: parseInt(e.target.value) })}
+                    min={1}
+                    max={100}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 클라우드 백업 설정 */}
+            <div className="space-y-4 pt-4 border-t border-[var(--glass-border)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                클라우드 백업
+              </h3>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)]">
+                <div>
+                  <p className="font-medium text-[var(--text-primary)]">클라우드 백업 활성화</p>
+                  <p className="text-sm text-[var(--text-muted)]">AWS S3 또는 Google Cloud Storage로 백업</p>
+                </div>
+                <button
+                  onClick={() => updateBackupSettingsMutation.mutate({
+                    cloudBackupEnabled: !backupSettingsData.settings.cloudBackupEnabled
+                  })}
+                  disabled={updateBackupSettingsMutation.isPending}
+                  className="text-[var(--primary)]"
+                >
+                  {backupSettingsData.settings.cloudBackupEnabled ? (
+                    <ToggleRight className="w-8 h-8" />
+                  ) : (
+                    <ToggleLeft className="w-8 h-8 text-[var(--text-muted)]" />
+                  )}
+                </button>
+              </div>
+
+              {backupSettingsData.settings.cloudBackupEnabled && (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                    클라우드 제공자
+                  </label>
+                  <select
+                    className="input w-full"
+                    value={backupSettingsData.settings.cloudProvider || ''}
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ cloudProvider: e.target.value || null })}
+                  >
+                    <option value="">선택하세요</option>
+                    <option value="s3">AWS S3</option>
+                    <option value="gcs">Google Cloud Storage</option>
+                  </select>
+                  <p className="text-xs text-[var(--text-muted)] mt-1">
+                    환경 변수에서 인증 정보를 설정해야 합니다.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 암호화 및 알림 설정 */}
+            <div className="space-y-4 pt-4 border-t border-[var(--glass-border)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                보안 및 알림
+              </h3>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)]">
+                  <div>
+                    <p className="font-medium text-[var(--text-primary)]">백업 암호화</p>
+                    <p className="text-sm text-[var(--text-muted)]">AES-256-GCM 암호화 적용</p>
+                  </div>
+                  <button
+                    onClick={() => updateBackupSettingsMutation.mutate({
+                      encryptionEnabled: !backupSettingsData.settings.encryptionEnabled
+                    })}
+                    disabled={updateBackupSettingsMutation.isPending}
+                    className="text-[var(--primary)]"
+                  >
+                    {backupSettingsData.settings.encryptionEnabled ? (
+                      <ToggleRight className="w-8 h-8" />
+                    ) : (
+                      <ToggleLeft className="w-8 h-8 text-[var(--text-muted)]" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)]">
+                  <div>
+                    <p className="font-medium text-[var(--text-primary)]">성공 알림</p>
+                    <p className="text-sm text-[var(--text-muted)]">백업 성공 시 Slack 알림</p>
+                  </div>
+                  <button
+                    onClick={() => updateBackupSettingsMutation.mutate({
+                      notifyOnSuccess: !backupSettingsData.settings.notifyOnSuccess
+                    })}
+                    disabled={updateBackupSettingsMutation.isPending}
+                    className="text-[var(--primary)]"
+                  >
+                    {backupSettingsData.settings.notifyOnSuccess ? (
+                      <ToggleRight className="w-8 h-8" />
+                    ) : (
+                      <ToggleLeft className="w-8 h-8 text-[var(--text-muted)]" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)]">
+                  <div>
+                    <p className="font-medium text-[var(--text-primary)]">실패 알림</p>
+                    <p className="text-sm text-[var(--text-muted)]">백업 실패 시 Slack 알림</p>
+                  </div>
+                  <button
+                    onClick={() => updateBackupSettingsMutation.mutate({
+                      notifyOnFailure: !backupSettingsData.settings.notifyOnFailure
+                    })}
+                    disabled={updateBackupSettingsMutation.isPending}
+                    className="text-[var(--primary)]"
+                  >
+                    {backupSettingsData.settings.notifyOnFailure ? (
+                      <ToggleRight className="w-8 h-8" />
+                    ) : (
+                      <ToggleLeft className="w-8 h-8 text-[var(--text-muted)]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 디스크 임계값 설정 */}
+            <div className="space-y-4 pt-4 border-t border-[var(--glass-border)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <HardDrive className="w-4 h-4" />
+                디스크 관리
+              </h3>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                  디스크 사용량 임계값 (GB)
+                </label>
+                <input
+                  type="number"
+                  className="input w-full max-w-xs"
+                  value={backupSettingsData.settings.diskThresholdGb}
+                  onChange={(e) => updateBackupSettingsMutation.mutate({ diskThresholdGb: parseInt(e.target.value) })}
+                  min={1}
+                  max={100}
+                />
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  이 용량을 초과하면 경고가 표시됩니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-[var(--glass-border)]">
+              <button
+                onClick={() => setShowBackupSettingsModal(false)}
+                className="btn-primary"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 백업 비교 모달 */}
+      <Modal
+        isOpen={showCompareModal}
+        onClose={() => {
+          setShowCompareModal(false);
+          setCompareBackup(null);
+        }}
+        title="백업 비교"
+        size="xl"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+            <GitCompare className="w-4 h-4" />
+            현재 DB와 <span className="font-mono text-[var(--primary)]">{compareBackup}</span> 백업을 비교합니다.
+          </div>
+
+          {compareLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-[var(--primary)]" />
+            </div>
+          ) : compareData ? (
+            <div className="space-y-4">
+              {/* 요약 통계 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg bg-[var(--success-50)] border border-[var(--success)]/20">
+                  <p className="text-sm text-[var(--text-muted)]">추가됨</p>
+                  <p className="text-2xl font-bold text-[var(--success)]">
+                    +{compareData.summary?.totalAdded || 0}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-[var(--warning-50)] border border-[var(--warning)]/20">
+                  <p className="text-sm text-[var(--text-muted)]">수정됨</p>
+                  <p className="text-2xl font-bold text-[var(--warning)]">
+                    ~{compareData.summary?.totalModified || 0}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-[var(--danger-50)] border border-[var(--danger)]/20">
+                  <p className="text-sm text-[var(--text-muted)]">삭제됨</p>
+                  <p className="text-2xl font-bold text-[var(--danger)]">
+                    -{compareData.summary?.totalDeleted || 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* 테이블별 변경 내역 */}
+              {compareData.differences && Object.keys(compareData.differences).length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <h4 className="text-sm font-medium text-[var(--text-secondary)]">테이블별 변경 내역</h4>
+                  {Object.entries(compareData.differences).map(([table, diff]: [string, unknown]) => {
+                    const tableDiff = diff as { added?: number; modified?: number; deleted?: number };
+                    return (
+                      <div
+                        key={table}
+                        className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]"
+                      >
+                        <span className="font-mono text-sm text-[var(--text-primary)]">{table}</span>
+                        <div className="flex items-center gap-3 text-sm">
+                          {tableDiff.added !== undefined && tableDiff.added > 0 && (
+                            <span className="text-[var(--success)]">+{tableDiff.added}</span>
+                          )}
+                          {tableDiff.modified !== undefined && tableDiff.modified > 0 && (
+                            <span className="text-[var(--warning)]">~{tableDiff.modified}</span>
+                          )}
+                          {tableDiff.deleted !== undefined && tableDiff.deleted > 0 && (
+                            <span className="text-[var(--danger)]">-{tableDiff.deleted}</span>
+                          )}
+                          {(tableDiff.added === 0 || tableDiff.added === undefined) &&
+                           (tableDiff.modified === 0 || tableDiff.modified === undefined) &&
+                           (tableDiff.deleted === 0 || tableDiff.deleted === undefined) && (
+                            <span className="text-[var(--text-muted)]">변경 없음</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-[var(--text-muted)]">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-[var(--success)]" />
+                  <p>현재 DB와 백업 파일이 동일합니다.</p>
+                </div>
+              )}
+
+              {/* 메타 정보 */}
+              <div className="pt-4 border-t border-[var(--glass-border)]">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-[var(--text-muted)]">현재 DB 레코드</p>
+                    <p className="font-mono text-[var(--text-primary)]">
+                      {compareData.current?.totalRecords?.toLocaleString() || 0}개
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--text-muted)]">백업 DB 레코드</p>
+                    <p className="font-mono text-[var(--text-primary)]">
+                      {compareData.backup?.totalRecords?.toLocaleString() || 0}개
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-[var(--text-muted)]">
+              비교 데이터를 불러올 수 없습니다.
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t border-[var(--glass-border)]">
+            <button
+              onClick={() => {
+                setShowCompareModal(false);
+                setCompareBackup(null);
+              }}
+              className="btn-primary"
+            >
+              닫기
             </button>
           </div>
         </div>
