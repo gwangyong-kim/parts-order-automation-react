@@ -22,6 +22,8 @@ import {
   AlertTriangle,
   ClipboardCheck,
   Play,
+  ShoppingCart,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import SalesOrderForm from "@/components/forms/SalesOrderForm";
@@ -53,6 +55,15 @@ interface MaterialRequirement {
   availableStock: number;
   shortageQty: number;
   safetyStock: number;
+  supplierId: number | null;
+  supplierName: string | null;
+  supplierCode: string | null;
+  leadTimeDays: number;
+  unitPrice: number;
+  minOrderQty: number;
+  recommendedOrderQty: number;
+  urgency: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  estimatedCost: number;
 }
 
 interface SalesOrder {
@@ -149,6 +160,26 @@ const statusIcons: Record<string, React.ElementType> = {
   CANCELLED: XCircle,
 };
 
+// 발주 생성 API 호출
+async function createOrderFromMrp(data: {
+  items: { partId: number; orderQty: number }[];
+  salesOrderId: number;
+  skipDraft: boolean;
+  orderDate: string;
+  notes: string;
+}) {
+  const res = await fetch("/api/orders/from-mrp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "발주 생성 실패");
+  }
+  return res.json();
+}
+
 export default function SalesOrderDetailPage({
   params,
 }: {
@@ -159,6 +190,7 @@ export default function SalesOrderDetailPage({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedParts, setSelectedParts] = useState<Set<number>>(new Set());
 
   const {
     data: order,
@@ -198,6 +230,33 @@ export default function SalesOrderDetailPage({
     },
     onError: () => {
       toast.error("수주 수정에 실패했습니다.");
+    },
+  });
+
+  // 빠른 발주 생성 mutation
+  const quickOrderMutation = useMutation({
+    mutationFn: (parts: MaterialRequirement[]) =>
+      createOrderFromMrp({
+        items: parts.map((p) => ({
+          partId: p.partId,
+          orderQty: p.recommendedOrderQty,
+        })),
+        salesOrderId: parseInt(id),
+        skipDraft: true,
+        orderDate: new Date().toISOString(),
+        notes: `SO ${order?.orderCode}에서 자동 생성`,
+      }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["sales-order", id] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      const orderCount = result.data?.purchaseOrders?.length || 0;
+      toast.success(
+        `발주 ${orderCount}건이 생성되었습니다. (총 ${result.data?.totalItems}개 품목)`
+      );
+      setSelectedParts(new Set());
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "발주 생성에 실패했습니다.");
     },
   });
 
@@ -599,168 +658,362 @@ export default function SalesOrderDetailPage({
       </div>
 
       {/* Material Requirements */}
-      {order.materialRequirements && order.materialRequirements.length > 0 && (
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-[var(--primary)]" />
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                자재 소요량
-              </h2>
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              {order.materialRequirements.filter(m => m.shortageQty > 0).length > 0 && (
-                <span className="flex items-center gap-1 text-[var(--danger)]">
-                  <AlertTriangle className="w-4 h-4" />
-                  부족 {order.materialRequirements.filter(m => m.shortageQty > 0).length}건
-                </span>
-              )}
-              <span className="text-[var(--text-muted)]">
-                {order.materialRequirements.length}개 파츠
-              </span>
-            </div>
-          </div>
+      {order.materialRequirements && order.materialRequirements.length > 0 && (() => {
+        const shortageParts = order.materialRequirements.filter(m => m.shortageQty > 0);
+        const hasShortage = shortageParts.length > 0;
+        const selectedShortageParts = shortageParts.filter(m => selectedParts.has(m.partId));
+        const allShortageSelected = hasShortage && selectedShortageParts.length === shortageParts.length;
 
-          <div className="overflow-x-auto">
-            <table className="w-full table-bordered">
-              <thead>
-                <tr className="border-b border-[var(--glass-border)]">
-                  <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    파츠코드
-                  </th>
-                  <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    파츠명
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    소요량
-                  </th>
-                  <th className="text-left px-1 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    단위
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    현재고
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    예약
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    입고예정
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    가용재고
-                  </th>
-                  <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    부족량
-                  </th>
-                  <th className="text-center px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
-                    상태
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.materialRequirements.map((mat) => {
-                  const isShortage = mat.shortageQty > 0;
-                  const isSafetyWarning = !isShortage && mat.availableStock - mat.totalRequirement < mat.safetyStock;
-                  return (
-                    <tr
-                      key={mat.partId}
-                      className={`border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]/50 ${isShortage ? "bg-[var(--danger)]/5" : ""}`}
+        const togglePartSelection = (partId: number) => {
+          setSelectedParts(prev => {
+            const next = new Set(prev);
+            if (next.has(partId)) {
+              next.delete(partId);
+            } else {
+              next.add(partId);
+            }
+            return next;
+          });
+        };
+
+        const toggleAllShortage = () => {
+          if (allShortageSelected) {
+            setSelectedParts(new Set());
+          } else {
+            setSelectedParts(new Set(shortageParts.map(p => p.partId)));
+          }
+        };
+
+        const handleQuickOrder = (parts: MaterialRequirement[]) => {
+          if (parts.length === 0) return;
+          if (!parts.every(p => p.supplierId)) {
+            toast.error("공급업체가 지정되지 않은 파츠가 있습니다.");
+            return;
+          }
+          quickOrderMutation.mutate(parts);
+        };
+
+        const urgencyColors = {
+          CRITICAL: { bg: "bg-[var(--danger)]/10", text: "text-[var(--danger)]", badge: "badge-danger" },
+          HIGH: { bg: "bg-[var(--warning)]/10", text: "text-[var(--warning)]", badge: "badge-warning" },
+          MEDIUM: { bg: "bg-[var(--info)]/10", text: "text-[var(--info)]", badge: "badge-info" },
+          LOW: { bg: "bg-[var(--glass-bg)]", text: "text-[var(--text-muted)]", badge: "badge-secondary" },
+        };
+
+        const urgencyLabels = {
+          CRITICAL: "긴급",
+          HIGH: "높음",
+          MEDIUM: "보통",
+          LOW: "낮음",
+        };
+
+        return (
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-[var(--primary)]" />
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                  자재 소요량
+                </h2>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                {hasShortage && (
+                  <span className="flex items-center gap-1 text-[var(--danger)]">
+                    <AlertTriangle className="w-4 h-4" />
+                    부족 {shortageParts.length}건
+                  </span>
+                )}
+                <span className="text-[var(--text-muted)]">
+                  {order.materialRequirements.length}개 파츠
+                </span>
+              </div>
+            </div>
+
+            {/* Shortage Alert Card */}
+            {hasShortage && (
+              <div className="mb-6 p-4 rounded-xl border-2 border-[var(--warning)] bg-[var(--warning)]/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-[var(--warning)]" />
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      부족 파츠 {shortageParts.length}건 발견 - 발주가 필요합니다
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleAllShortage}
+                      className="text-sm text-[var(--primary)] hover:underline"
                     >
-                      <td className="px-3 py-3">
-                        <Link
-                          href={`/parts/${mat.partId}`}
-                          className="font-mono text-sm text-[var(--primary)] hover:underline"
+                      {allShortageSelected ? "전체 해제" : "전체 선택"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Shortage Parts List */}
+                <div className="space-y-2 mb-4">
+                  {shortageParts.map((mat) => {
+                    const isSelected = selectedParts.has(mat.partId);
+                    const colors = urgencyColors[mat.urgency];
+
+                    return (
+                      <div
+                        key={mat.partId}
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-[var(--primary)] bg-[var(--primary)]/5"
+                            : "border-[var(--glass-border)] hover:border-[var(--primary)]/50"
+                        }`}
+                        onClick={() => togglePartSelection(mat.partId)}
+                      >
+                        {/* Checkbox */}
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                            isSelected
+                              ? "bg-[var(--primary)] border-[var(--primary)]"
+                              : "border-[var(--glass-border)]"
+                          }`}
                         >
-                          {mat.partCode}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3 text-[var(--text-primary)]">
-                        {mat.partName}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums font-medium">
-                        {mat.totalRequirement.toLocaleString()}
-                      </td>
-                      <td className="px-1 py-3 text-left text-xs text-[var(--text-muted)]">
-                        {mat.unit}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums">
-                        {mat.currentStock.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                        {mat.reservedQty > 0 ? `-${mat.reservedQty.toLocaleString()}` : "-"}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-[var(--info)]">
-                        {mat.incomingQty > 0 ? `+${mat.incomingQty.toLocaleString()}` : "-"}
-                      </td>
-                      <td className={`px-3 py-3 text-right tabular-nums font-medium ${mat.availableStock < 0 ? "text-[var(--danger)]" : ""}`}>
-                        {mat.availableStock.toLocaleString()}
-                      </td>
-                      <td className={`px-3 py-3 text-right tabular-nums font-bold ${isShortage ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>
-                        {isShortage ? `-${mat.shortageQty.toLocaleString()}` : "0"}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {isShortage ? (
-                          <span className="badge badge-danger flex items-center gap-1 w-fit mx-auto">
-                            <AlertTriangle className="w-3 h-3" />
-                            부족
-                          </span>
-                        ) : isSafetyWarning ? (
-                          <span className="badge badge-warning flex items-center gap-1 w-fit mx-auto">
-                            <AlertCircle className="w-3 h-3" />
-                            주의
-                          </span>
-                        ) : (
-                          <span className="badge badge-success flex items-center gap-1 w-fit mx-auto">
-                            <CheckCircle className="w-3 h-3" />
-                            충분
-                          </span>
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+
+                        {/* Part Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/parts/${mat.partId}`}
+                              className="font-mono text-sm text-[var(--primary)] hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {mat.partCode}
+                            </Link>
+                            <span className="text-[var(--text-primary)] truncate">
+                              {mat.partName}
+                            </span>
+                          </div>
+                          {mat.supplierName && (
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {mat.supplierName}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Shortage Qty */}
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-[var(--danger)]">
+                            부족: {mat.shortageQty.toLocaleString()}{mat.unit}
+                          </div>
+                          <div className="text-xs text-[var(--text-muted)]">
+                            권장 발주: {mat.recommendedOrderQty.toLocaleString()}{mat.unit}
+                          </div>
+                        </div>
+
+                        {/* Urgency Badge */}
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                          {urgencyLabels[mat.urgency]}
+                        </div>
+
+                        {/* Estimated Cost */}
+                        {mat.estimatedCost > 0 && (
+                          <div className="text-right text-xs text-[var(--text-muted)] w-20">
+                            {mat.estimatedCost.toLocaleString()}원
+                          </div>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-[var(--glass-bg)]">
-                  <td colSpan={2} className="px-3 py-3 font-medium">
-                    합계 ({order.materialRequirements.length}개 파츠)
-                  </td>
-                  <td className="px-3 py-3 text-right font-bold tabular-nums">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.totalRequirement, 0).toLocaleString()}
-                  </td>
-                  <td></td>
-                  <td className="px-3 py-3 text-right tabular-nums">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.currentStock, 0).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.reservedQty, 0).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-[var(--info)]">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.incomingQty, 0).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-3 text-right font-bold tabular-nums">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.availableStock, 0).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-3 text-right font-bold tabular-nums text-[var(--danger)]">
-                    {order.materialRequirements.reduce((sum, m) => sum + m.shortageQty, 0).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-3 text-center">
-                    {order.materialRequirements.filter(m => m.shortageQty > 0).length > 0 ? (
-                      <span className="text-sm text-[var(--danger)] font-medium">
-                        {order.materialRequirements.filter(m => m.shortageQty > 0).length}건 부족
-                      </span>
-                    ) : (
-                      <span className="text-sm text-[var(--success)] font-medium">
-                        모두 충분
-                      </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-3 border-t border-[var(--glass-border)]">
+                  <div className="text-sm text-[var(--text-muted)]">
+                    {selectedShortageParts.length > 0 && (
+                      <>
+                        선택됨: {selectedShortageParts.length}건 /
+                        예상 금액: {selectedShortageParts.reduce((sum, p) => sum + p.estimatedCost, 0).toLocaleString()}원
+                      </>
                     )}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleQuickOrder(selectedShortageParts)}
+                      disabled={selectedShortageParts.length === 0 || quickOrderMutation.isPending}
+                      className="btn btn-secondary"
+                    >
+                      {quickOrderMutation.isPending ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ShoppingCart className="w-4 h-4" />
+                      )}
+                      선택 발주 ({selectedShortageParts.length}건)
+                    </button>
+                    <button
+                      onClick={() => handleQuickOrder(shortageParts)}
+                      disabled={quickOrderMutation.isPending}
+                      className="btn btn-primary"
+                    >
+                      {quickOrderMutation.isPending ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ShoppingCart className="w-4 h-4" />
+                      )}
+                      전체 발주 ({shortageParts.length}건)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Full Material Requirements Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full table-bordered">
+                <thead>
+                  <tr className="border-b border-[var(--glass-border)]">
+                    <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      파츠코드
+                    </th>
+                    <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      파츠명
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      소요량
+                    </th>
+                    <th className="text-left px-1 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      단위
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      현재고
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      예약
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      입고예정
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      가용재고
+                    </th>
+                    <th className="text-right px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      부족량
+                    </th>
+                    <th className="text-left px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      공급업체
+                    </th>
+                    <th className="text-center px-3 py-2 text-sm font-medium text-[var(--text-muted)]">
+                      상태
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.materialRequirements.map((mat) => {
+                    const isShortage = mat.shortageQty > 0;
+                    const isSafetyWarning = !isShortage && mat.availableStock - mat.totalRequirement < mat.safetyStock;
+                    const colors = urgencyColors[mat.urgency];
+
+                    return (
+                      <tr
+                        key={mat.partId}
+                        className={`border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]/50 ${isShortage ? "bg-[var(--danger)]/5" : ""}`}
+                      >
+                        <td className="px-3 py-3">
+                          <Link
+                            href={`/parts/${mat.partId}`}
+                            className="font-mono text-sm text-[var(--primary)] hover:underline"
+                          >
+                            {mat.partCode}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-3 text-[var(--text-primary)]">
+                          {mat.partName}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums font-medium">
+                          {mat.totalRequirement.toLocaleString()}
+                        </td>
+                        <td className="px-1 py-3 text-left text-xs text-[var(--text-muted)]">
+                          {mat.unit}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums">
+                          {mat.currentStock.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-[var(--text-secondary)]">
+                          {mat.reservedQty > 0 ? `-${mat.reservedQty.toLocaleString()}` : "-"}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-[var(--info)]">
+                          {mat.incomingQty > 0 ? `+${mat.incomingQty.toLocaleString()}` : "-"}
+                        </td>
+                        <td className={`px-3 py-3 text-right tabular-nums font-medium ${mat.availableStock < 0 ? "text-[var(--danger)]" : ""}`}>
+                          {mat.availableStock.toLocaleString()}
+                        </td>
+                        <td className={`px-3 py-3 text-right tabular-nums font-bold ${isShortage ? "text-[var(--danger)]" : "text-[var(--success)]"}`}>
+                          {isShortage ? `-${mat.shortageQty.toLocaleString()}` : "0"}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-[var(--text-secondary)]">
+                          {mat.supplierName || "-"}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {isShortage ? (
+                            <span className={`badge ${colors.badge} flex items-center gap-1 w-fit mx-auto`}>
+                              <AlertTriangle className="w-3 h-3" />
+                              {urgencyLabels[mat.urgency]}
+                            </span>
+                          ) : isSafetyWarning ? (
+                            <span className="badge badge-warning flex items-center gap-1 w-fit mx-auto">
+                              <AlertCircle className="w-3 h-3" />
+                              주의
+                            </span>
+                          ) : (
+                            <span className="badge badge-success flex items-center gap-1 w-fit mx-auto">
+                              <CheckCircle className="w-3 h-3" />
+                              충분
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-[var(--glass-bg)]">
+                    <td colSpan={2} className="px-3 py-3 font-medium">
+                      합계 ({order.materialRequirements.length}개 파츠)
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold tabular-nums">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.totalRequirement, 0).toLocaleString()}
+                    </td>
+                    <td></td>
+                    <td className="px-3 py-3 text-right tabular-nums">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.currentStock, 0).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[var(--text-secondary)]">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.reservedQty, 0).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-[var(--info)]">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.incomingQty, 0).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold tabular-nums">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.availableStock, 0).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold tabular-nums text-[var(--danger)]">
+                      {order.materialRequirements.reduce((sum, m) => sum + m.shortageQty, 0).toLocaleString()}
+                    </td>
+                    <td></td>
+                    <td className="px-3 py-3 text-center">
+                      {hasShortage ? (
+                        <span className="text-sm text-[var(--danger)] font-medium">
+                          {shortageParts.length}건 부족
+                        </span>
+                      ) : (
+                        <span className="text-sm text-[var(--success)] font-medium">
+                          모두 충분
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Edit Modal */}
       <SalesOrderForm

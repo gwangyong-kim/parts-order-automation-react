@@ -27,6 +27,8 @@ interface MrpOrderItem {
 
 interface FromMrpRequest {
   items: MrpOrderItem[];
+  salesOrderId?: number;  // SO 연결 (추적용)
+  skipDraft?: boolean;    // true면 ORDERED 상태로 바로 생성
   orderDate?: string;
   expectedDate?: string;
   notes?: string;
@@ -40,7 +42,7 @@ interface FromMrpRequest {
 export async function POST(request: Request) {
   try {
     const body: FromMrpRequest = await request.json();
-    const { items, orderDate, expectedDate, notes } = body;
+    const { items, salesOrderId, skipDraft, orderDate, expectedDate, notes } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -111,6 +113,10 @@ export async function POST(request: Request) {
             return date;
           })();
 
+      // 발주 상태 결정 (skipDraft가 true면 ORDERED로 바로 생성)
+      const orderStatus = skipDraft ? "ORDERED" : "DRAFT";
+      const itemStatus = skipDraft ? "ORDERED" : "PENDING";
+
       // 발주서 생성
       const order = await prisma.order.create({
         data: {
@@ -118,16 +124,16 @@ export async function POST(request: Request) {
           supplierId,
           orderDate: parsedOrderDate,
           expectedDate: calcExpectedDate,
-          status: "DRAFT",
+          status: orderStatus,
           totalAmount,
-          notes: notes || `MRP 기반 자동 발주 (${group.items.length}개 품목)`,
+          notes: notes || `MRP 기반 자동 발주 (${group.items.length}개 품목)${salesOrderId ? ` - SO #${salesOrderId}` : ""}`,
           items: {
             create: group.items.map((item) => ({
               partId: item.part.id,
               orderQty: item.orderQty,
               unitPrice: item.part.unitPrice || 0,
               totalPrice: item.orderQty * (item.part.unitPrice || 0),
-              status: "PENDING",
+              status: itemStatus,
             })),
           },
         },
