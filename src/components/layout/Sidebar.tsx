@@ -4,9 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Package,
-  Box,
-  Truck,
+  Database,
   ShoppingCart,
   ClipboardList,
   Warehouse,
@@ -38,14 +36,7 @@ const navigationGroups: NavGroup[] = [
     title: "",
     items: [
       { label: "대시보드", href: "/", icon: LayoutDashboard },
-    ],
-  },
-  {
-    title: "마스터 데이터",
-    items: [
-      { label: "파츠 관리", href: "/parts", icon: Package },
-      { label: "제품 관리", href: "/products", icon: Box },
-      { label: "공급업체", href: "/suppliers", icon: Truck },
+      { label: "마스터 데이터", href: "/master-data", icon: Database },
     ],
   },
   {
