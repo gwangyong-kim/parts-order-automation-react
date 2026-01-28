@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -11,6 +11,8 @@ import {
   TrendingUp,
   TrendingDown,
   Package,
+  Filter,
+  ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -39,12 +41,31 @@ async function fetchInventory(): Promise<InventoryItem[]> {
 export default function InventoryPage() {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const { data: inventory, isLoading, error } = useQuery({
     queryKey: ["inventory"],
     queryFn: fetchInventory,
   });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const clearFilters = () => {
+    setFilterStatus("all");
+    setShowFilterDropdown(false);
+  };
+
+  const hasActiveFilters = filterStatus !== "all";
 
   const handleExport = () => {
     if (!filteredInventory || filteredInventory.length === 0) {
@@ -85,10 +106,12 @@ export default function InventoryPage() {
     const matchesSearch =
       item.part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLowStock = showLowStockOnly
-      ? item.currentQty <= item.part.safetyStock
-      : true;
-    return matchesSearch && matchesLowStock;
+    const isLowStock = item.currentQty <= item.part.safetyStock;
+    const matchesStatus =
+      filterStatus === "all" ? true :
+      filterStatus === "low" ? isLowStock :
+      filterStatus === "normal" ? !isLowStock : true;
+    return matchesSearch && matchesStatus;
   });
 
   const lowStockCount = inventory?.filter(
@@ -203,13 +226,45 @@ export default function InventoryPage() {
             />
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-              className={`btn-secondary ${showLowStockOnly ? "ring-2 ring-[var(--warning)] bg-[var(--warning)] text-white" : ""}`}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              저재고만
-            </button>
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">1</span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
+              </button>
+
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
+                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
+                    {hasActiveFilters && (
+                      <button onClick={clearFilters} className="text-xs text-[var(--primary-500)] hover:underline">
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">재고 상태</label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="all">전체</option>
+                      <option value="low">저재고</option>
+                      <option value="normal">정상</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button onClick={handleExport} className="btn-secondary">
               <Download className="w-4 h-4" />
               내보내기

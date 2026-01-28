@@ -14,6 +14,9 @@ import {
   Trash2,
   Calendar,
   ChevronDown,
+  Clock,
+  Factory,
+  CheckCircle,
 } from "lucide-react";
 import SalesOrderForm from "@/components/forms/SalesOrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -362,28 +365,56 @@ export default function SalesOrdersPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-4">
-          <p className="text-sm text-[var(--text-muted)]">전체 수주</p>
-          <p className="text-2xl font-bold text-[var(--text-primary)]">
-            {orders?.length || 0}
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--gray-100)] rounded-lg flex items-center justify-center">
+              <ClipboardList className="w-5 h-5 text-[var(--primary)]" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-muted)]">전체 수주</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">
+                {orders?.length || 0}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="glass-card p-4">
-          <p className="text-sm text-[var(--text-muted)]">대기중</p>
-          <p className="text-2xl font-bold text-[var(--warning)]">
-            {orders?.filter((o) => o.status === "PENDING").length || 0}
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--gray-100)] rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-[var(--warning)]" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-muted)]">대기중</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">
+                {orders?.filter((o) => o.status === "PENDING").length || 0}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="glass-card p-4">
-          <p className="text-sm text-[var(--text-muted)]">생산중</p>
-          <p className="text-2xl font-bold text-[var(--info)]">
-            {orders?.filter((o) => o.status === "IN_PRODUCTION").length || 0}
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--gray-100)] rounded-lg flex items-center justify-center">
+              <Factory className="w-5 h-5 text-[var(--info)]" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-muted)]">생산중</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">
+                {orders?.filter((o) => o.status === "IN_PRODUCTION").length || 0}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="glass-card p-4">
-          <p className="text-sm text-[var(--text-muted)]">완료</p>
-          <p className="text-2xl font-bold text-[var(--success)]">
-            {orders?.filter((o) => o.status === "COMPLETED").length || 0}
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[var(--gray-100)] rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-[var(--success)]" />
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text-muted)]">완료</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">
+                {orders?.filter((o) => o.status === "COMPLETED").length || 0}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

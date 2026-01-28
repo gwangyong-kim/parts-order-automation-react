@@ -15,6 +15,9 @@ export default function PartsPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">파츠 관리</h1>
+        <p className="text-[var(--text-secondary)]">
+          파츠 및 카테고리를 등록하고 관리합니다.
+        </p>
       </div>
 
       {/* Tab Navigation */}

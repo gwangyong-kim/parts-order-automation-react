@@ -425,7 +425,7 @@ export default function OrdersPage() {
             </button>
             <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
               <Upload className="w-4 h-4" />
-              대량 업로드
+              가져오기
             </button>
           </div>
         </div>
@@ -578,9 +578,9 @@ export default function OrdersPage() {
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUpload={handleBulkUpload}
-        title="발주 대량 업로드"
+        title="발주 대량 등록"
         fields={orderUploadFields}
-        templateName="발주_업로드_양식"
+        templateName="발주"
         isLoading={isUploading}
       />
     </div>
