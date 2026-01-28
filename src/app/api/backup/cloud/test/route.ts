@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/authorization";
 import { handleApiError } from "@/lib/api-error";
-import { isGCSConfigured, testGCSConnection } from "@/lib/gcs-storage";
+import { isR2Configured, testR2Connection } from "@/lib/r2-storage";
 
-// GCS 연결 테스트 (ADMIN)
+// R2 연결 테스트 (ADMIN)
 export async function GET() {
   try {
     const authResult = await requireRole(["ADMIN"]);
@@ -12,35 +12,35 @@ export async function GET() {
     }
 
     // 설정 확인
-    const configured = isGCSConfigured();
+    const configured = isR2Configured();
     const envStatus = {
-      GCS_PROJECT_ID: !!process.env.GCS_PROJECT_ID,
-      GCS_BUCKET_NAME: !!process.env.GCS_BUCKET_NAME,
-      GCS_KEY_FILE: !!process.env.GCS_KEY_FILE,
-      GCS_CREDENTIALS: !!process.env.GCS_CREDENTIALS,
-      GCS_BACKUP_PREFIX: process.env.GCS_BACKUP_PREFIX || "backups/",
+      R2_ACCOUNT_ID: !!process.env.R2_ACCOUNT_ID,
+      R2_ACCESS_KEY_ID: !!process.env.R2_ACCESS_KEY_ID,
+      R2_SECRET_ACCESS_KEY: !!process.env.R2_SECRET_ACCESS_KEY,
+      R2_BUCKET_NAME: !!process.env.R2_BUCKET_NAME,
+      R2_BACKUP_PREFIX: process.env.R2_BACKUP_PREFIX || "backups/",
     };
 
     if (!configured) {
       return NextResponse.json({
         configured: false,
         connected: false,
-        message: "GCS 환경 변수가 설정되지 않았습니다.",
+        message: "R2 환경 변수가 설정되지 않았습니다.",
         envStatus,
         requiredEnvVars: {
-          required: ["GCS_BUCKET_NAME"],
-          authOptions: [
-            "GCS_KEY_FILE (서비스 계정 키 파일 경로)",
-            "GCS_CREDENTIALS (서비스 계정 JSON 문자열)",
-            "GCS_PROJECT_ID (GCE/Cloud Run에서 자동 인증 사용 시)",
+          required: [
+            "R2_ACCOUNT_ID (Cloudflare 계정 ID)",
+            "R2_ACCESS_KEY_ID (R2 API 토큰 Access Key)",
+            "R2_SECRET_ACCESS_KEY (R2 API 토큰 Secret Key)",
+            "R2_BUCKET_NAME (R2 버킷 이름)",
           ],
-          optional: ["GCS_BACKUP_PREFIX (기본값: backups/)"],
+          optional: ["R2_BACKUP_PREFIX (기본값: backups/)"],
         },
       });
     }
 
     // 연결 테스트
-    const connectionResult = await testGCSConnection();
+    const connectionResult = await testR2Connection();
 
     return NextResponse.json({
       configured: true,
@@ -50,7 +50,7 @@ export async function GET() {
       envStatus,
     });
   } catch (error) {
-    console.error("GCS 연결 테스트 오류:", error);
+    console.error("R2 연결 테스트 오류:", error);
     return handleApiError(error);
   }
 }

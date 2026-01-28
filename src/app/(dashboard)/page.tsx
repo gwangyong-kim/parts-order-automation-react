@@ -27,7 +27,40 @@ function calculateTrend(current: number, previous: number): { value: number; isP
   };
 }
 
-async function getDashboardStats() {
+interface LowStockPart {
+  id: number;
+  partName: string;
+  currentQty: number;
+  safetyStock: number;
+}
+
+interface RecentTransaction {
+  id: number;
+  transactionCode: string;
+  transactionType: string;
+  quantity: number;
+  beforeQty: number;
+  afterQty: number;
+  createdAt: Date;
+  part: {
+    partName: string;
+  };
+}
+
+async function getDashboardStats(): Promise<{
+  partsCount: number;
+  partsCountTrend: { value: number; isPositive: boolean } | null;
+  lowStockCount: number;
+  lowStockTrend: { value: number; isPositive: boolean } | null;
+  pendingOrdersCount: number;
+  recentTransactions: RecentTransaction[];
+  lowStockParts: LowStockPart[];
+  monthlyInbound: number;
+  monthlyInboundTrend: { value: number; isPositive: boolean } | null;
+  totalInventoryValue: number;
+  criticalMrpCount: number;
+  pendingAuditCount: number;
+}> {
   try {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -106,9 +139,7 @@ async function getDashboardStats() {
     `;
 
     // 저재고 품목 목록 (표시용, 3개 제한)
-    const lowStockParts = await prisma.$queryRaw<
-      { id: number; partName: string; currentQty: number; safetyStock: number }[]
-    >`
+    const lowStockParts = await prisma.$queryRaw<LowStockPart[]>`
       SELECT p.id, p.part_name as "partName", i.current_qty as "currentQty", p.safety_stock as "safetyStock"
       FROM parts p
       JOIN inventory i ON p.id = i.part_id
@@ -153,8 +184,8 @@ async function getDashboardStats() {
       lowStockCount: 0,
       lowStockTrend: null,
       pendingOrdersCount: 0,
-      recentTransactions: [],
-      lowStockParts: [],
+      recentTransactions: [] as RecentTransaction[],
+      lowStockParts: [] as LowStockPart[],
       monthlyInbound: 0,
       monthlyInboundTrend: null,
       totalInventoryValue: 0,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import type { AuditItem } from "@prisma/client";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -59,10 +60,10 @@ export async function PUT(request: Request, { params }: Params) {
       where: { auditId: currentItem.auditId },
     });
 
-    const countedItems = allItems.filter((item) => item.countedQty !== null);
-    const matchedItems = countedItems.filter((item) => item.discrepancy === 0);
+    const countedItems = allItems.filter((item: AuditItem) => item.countedQty !== null);
+    const matchedItems = countedItems.filter((item: AuditItem) => item.discrepancy === 0);
     const discrepancyItems = countedItems.filter(
-      (item) => item.discrepancy !== null && item.discrepancy !== 0
+      (item: AuditItem) => item.discrepancy !== null && item.discrepancy !== 0
     );
 
     await prisma.auditRecord.update({

@@ -4,10 +4,10 @@ import path from "path";
 import { requireRole } from "@/lib/authorization";
 import { handleApiError, notFound } from "@/lib/api-error";
 import {
-  isGCSConfigured,
-  downloadFromGCS,
-  deleteFromGCS,
-} from "@/lib/gcs-storage";
+  isR2Configured,
+  downloadFromR2,
+  deleteFromR2,
+} from "@/lib/r2-storage";
 import { createBackup } from "@/lib/backup-scheduler";
 
 const DATA_DIR =
@@ -15,7 +15,7 @@ const DATA_DIR =
 const DB_FILE =
   process.env.NODE_ENV === "production" ? "partsync.db" : "dev.db";
 
-// GCS 백업 다운로드 (로컬로 복원)
+// R2 백업 다운로드 (로컬로 복원)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ fileName: string }> }
@@ -28,9 +28,9 @@ export async function POST(
 
     const { fileName } = await params;
 
-    if (!isGCSConfigured()) {
+    if (!isR2Configured()) {
       return NextResponse.json(
-        { error: "GCS가 설정되지 않았습니다." },
+        { error: "R2가 설정되지 않았습니다." },
         { status: 400 }
       );
     }
@@ -42,7 +42,7 @@ export async function POST(
       // 복원 전 현재 DB 백업
       const preRestoreBackup = await createBackup({
         type: "PRE_RESTORE",
-        description: `GCS 복원 전 자동 백업 (복원 파일: ${fileName})`,
+        description: `R2 복원 전 자동 백업 (복원 파일: ${fileName})`,
         createdBy: authResult.session.user.id,
       });
 
@@ -53,13 +53,13 @@ export async function POST(
         );
       }
 
-      // GCS에서 다운로드
+      // R2에서 다운로드
       const tempPath = path.join(DATA_DIR, `temp_restore_${Date.now()}.db`);
-      const downloadResult = await downloadFromGCS(fileName, tempPath);
+      const downloadResult = await downloadFromR2(fileName, tempPath);
 
       if (!downloadResult.success) {
         return NextResponse.json(
-          { error: `GCS 다운로드 실패: ${downloadResult.error}` },
+          { error: `R2 다운로드 실패: ${downloadResult.error}` },
           { status: 500 }
         );
       }
@@ -80,7 +80,7 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        message: "GCS에서 백업이 복원되었습니다.",
+        message: "R2에서 백업이 복원되었습니다.",
         preRestoreBackup: preRestoreBackup.fileName,
         restoredFrom: fileName,
       });
@@ -93,7 +93,7 @@ export async function POST(
       await fs.mkdir(downloadDir, { recursive: true });
 
       const localPath = path.join(downloadDir, fileName);
-      const downloadResult = await downloadFromGCS(fileName, localPath);
+      const downloadResult = await downloadFromR2(fileName, localPath);
 
       if (!downloadResult.success) {
         return NextResponse.json(
@@ -114,12 +114,12 @@ export async function POST(
       { status: 400 }
     );
   } catch (error) {
-    console.error("GCS 백업 처리 오류:", error);
+    console.error("R2 백업 처리 오류:", error);
     return handleApiError(error);
   }
 }
 
-// GCS 백업 삭제
+// R2 백업 삭제
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ fileName: string }> }
@@ -132,14 +132,14 @@ export async function DELETE(
 
     const { fileName } = await params;
 
-    if (!isGCSConfigured()) {
+    if (!isR2Configured()) {
       return NextResponse.json(
-        { error: "GCS가 설정되지 않았습니다." },
+        { error: "R2가 설정되지 않았습니다." },
         { status: 400 }
       );
     }
 
-    const result = await deleteFromGCS(fileName);
+    const result = await deleteFromR2(fileName);
 
     if (!result.success) {
       return handleApiError(notFound(`파일을 찾을 수 없습니다: ${fileName}`));
@@ -147,11 +147,11 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "GCS 백업이 삭제되었습니다.",
+      message: "R2 백업이 삭제되었습니다.",
       fileName,
     });
   } catch (error) {
-    console.error("GCS 백업 삭제 오류:", error);
+    console.error("R2 백업 삭제 오류:", error);
     return handleApiError(error);
   }
 }

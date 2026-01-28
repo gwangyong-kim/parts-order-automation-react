@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/authorization";
 import { handleApiError } from "@/lib/api-error";
 import {
-  isGCSConfigured,
-  testGCSConnection,
-  listGCSBackups,
-  getGCSUsage,
-} from "@/lib/gcs-storage";
+  isR2Configured,
+  testR2Connection,
+  listR2Backups,
+  getR2Usage,
+} from "@/lib/r2-storage";
 
-// GCS 백업 목록 및 상태 조회 (ADMIN, MANAGER)
+// R2 백업 목록 및 상태 조회 (ADMIN, MANAGER)
 export async function GET() {
   try {
     const authResult = await requireRole(["ADMIN", "MANAGER"]);
@@ -16,20 +16,22 @@ export async function GET() {
       return handleApiError(authResult.error);
     }
 
-    // GCS 설정 여부 확인
-    if (!isGCSConfigured()) {
+    // R2 설정 여부 확인
+    if (!isR2Configured()) {
       return NextResponse.json({
         configured: false,
-        message: "GCS가 설정되지 않았습니다. 환경 변수를 확인하세요.",
+        message: "R2가 설정되지 않았습니다. 환경 변수를 확인하세요.",
         requiredEnvVars: [
-          "GCS_BUCKET_NAME",
-          "GCS_PROJECT_ID 또는 GCS_KEY_FILE 또는 GCS_CREDENTIALS",
+          "R2_ACCOUNT_ID",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+          "R2_BUCKET_NAME",
         ],
       });
     }
 
     // 연결 테스트
-    const connectionTest = await testGCSConnection();
+    const connectionTest = await testR2Connection();
     if (!connectionTest.success) {
       return NextResponse.json({
         configured: true,
@@ -40,8 +42,8 @@ export async function GET() {
 
     // 백업 목록 및 사용량 조회
     const [backups, usage] = await Promise.all([
-      listGCSBackups(),
-      getGCSUsage(),
+      listR2Backups(),
+      getR2Usage(),
     ]);
 
     return NextResponse.json({
@@ -52,7 +54,7 @@ export async function GET() {
       usage,
     });
   } catch (error) {
-    console.error("GCS 백업 조회 오류:", error);
+    console.error("R2 백업 조회 오류:", error);
     return handleApiError(error);
   }
 }

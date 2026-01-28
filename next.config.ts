@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
       "@tanstack/react-query",
     ],
   },
+
+  // Exclude AWS SDK from server component bundling for proper resolution
+  serverExternalPackages: ["@aws-sdk/client-s3"],
 };
 
 export default nextConfig;

@@ -9,10 +9,10 @@ import path from "path";
 import crypto from "crypto";
 import prisma from "./prisma";
 import {
-  isGCSConfigured,
+  isR2Configured,
   uploadBackupWithMeta,
-  cleanupOldGCSBackups,
-} from "./gcs-storage";
+  cleanupOldR2Backups,
+} from "./r2-storage";
 
 const DATA_DIR = process.env.NODE_ENV === "production" ? "/app/data" : "./prisma";
 const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
@@ -130,12 +130,12 @@ export async function createBackup(options: BackupOptions = {}): Promise<BackupR
     const stat = await fs.stat(backupPath);
     const duration = Date.now() - startTime;
 
-    // GCS 클라우드 백업 (설정된 경우)
+    // R2 클라우드 백업 (설정된 경우)
     let cloudBackupResult: BackupResult["cloudBackup"];
     try {
       const settings = await prisma.backupSettings.findFirst();
-      if (settings?.cloudBackupEnabled && isGCSConfigured()) {
-        const gcsResult = await uploadBackupWithMeta(backupPath, {
+      if (settings?.cloudBackupEnabled && isR2Configured()) {
+        const r2Result = await uploadBackupWithMeta(backupPath, {
           type: options.type || "MANUAL",
           createdBy: options.createdBy || "system",
           appVersion: APP_VERSION,
@@ -143,21 +143,21 @@ export async function createBackup(options: BackupOptions = {}): Promise<BackupR
         });
 
         cloudBackupResult = {
-          success: gcsResult.success,
-          fileName: gcsResult.fileName,
-          error: gcsResult.error,
+          success: r2Result.success,
+          fileName: r2Result.fileName,
+          error: r2Result.error,
         };
 
-        // GCS 오래된 백업 정리
-        if (gcsResult.success && settings.maxBackupCount) {
-          await cleanupOldGCSBackups(settings.maxBackupCount);
+        // R2 오래된 백업 정리
+        if (r2Result.success && settings.maxBackupCount) {
+          await cleanupOldR2Backups(settings.maxBackupCount);
         }
       }
-    } catch (gcsError) {
-      console.error("GCS 백업 오류:", gcsError);
+    } catch (r2Error) {
+      console.error("R2 백업 오류:", r2Error);
       cloudBackupResult = {
         success: false,
-        error: gcsError instanceof Error ? gcsError.message : "GCS 업로드 실패",
+        error: r2Error instanceof Error ? r2Error.message : "R2 업로드 실패",
       };
     }
 

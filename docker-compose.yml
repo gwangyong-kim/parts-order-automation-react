@@ -32,16 +32,12 @@ services:
       - BACKUP_MAX_COUNT=${BACKUP_MAX_COUNT:-30}
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
       - RUN_MIGRATIONS=${RUN_MIGRATIONS:-false}
-      # Cloud backup - Google Cloud Storage (optional)
-      - GCS_PROJECT_ID=${GCS_PROJECT_ID:-}
-      - GCS_BUCKET_NAME=${GCS_BUCKET_NAME:-}
-      - GCS_CREDENTIALS=${GCS_CREDENTIALS:-}
-      - GCS_BACKUP_PREFIX=${GCS_BACKUP_PREFIX:-backups/}
-      # Cloud backup - AWS S3 (optional, alternative)
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
-      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
-      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      # Cloud backup - Cloudflare R2 (optional)
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_BACKUP_PREFIX=${R2_BACKUP_PREFIX:-backups/}
       # Backup encryption (optional)
       - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:-}
       # Notifications (optional)
