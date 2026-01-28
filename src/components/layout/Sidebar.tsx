@@ -7,7 +7,6 @@ import {
   Package,
   Box,
   Truck,
-  FolderTree,
   ShoppingCart,
   ClipboardList,
   Warehouse,
@@ -17,8 +16,6 @@ import {
   BarChart3,
   Users,
   Settings,
-  Upload,
-  Map,
   Layout,
   ListChecks,
 } from "lucide-react";
@@ -44,44 +41,36 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    title: "기준정보",
+    title: "마스터 데이터",
     items: [
       { label: "파츠 관리", href: "/parts", icon: Package },
-      { label: "카테고리", href: "/categories", icon: FolderTree },
       { label: "제품 관리", href: "/products", icon: Box },
       { label: "공급업체", href: "/suppliers", icon: Truck },
     ],
   },
   {
-    title: "영업/구매",
+    title: "주문 관리",
     items: [
       { label: "수주 관리", href: "/sales-orders", icon: ShoppingCart },
       { label: "발주 관리", href: "/orders", icon: ClipboardList },
+      { label: "피킹 작업", href: "/picking", icon: ListChecks },
     ],
   },
   {
-    title: "재고/물류",
+    title: "재고/창고",
     items: [
       { label: "현재고 현황", href: "/inventory", icon: Warehouse },
       { label: "입출고 내역", href: "/transactions", icon: ArrowLeftRight },
-      { label: "피킹 작업", href: "/picking", icon: ListChecks },
-      { label: "창고 맵", href: "/floor-map", icon: Map },
-      { label: "창고 관리", href: "/warehouse", icon: Layout },
+      { label: "창고", href: "/warehouse", icon: Layout },
       { label: "실사 관리", href: "/audit", icon: ClipboardCheck },
     ],
   },
   {
-    title: "계획/분석",
+    title: "분석/시스템",
     items: [
       { label: "MRP", href: "/mrp", icon: Calculator },
       { label: "리포트", href: "/reports", icon: BarChart3 },
-    ],
-  },
-  {
-    title: "시스템",
-    items: [
       { label: "사용자 관리", href: "/users", icon: Users },
-      { label: "업로드 로그", href: "/upload-logs", icon: Upload },
       { label: "시스템 설정", href: "/settings", icon: Settings },
     ],
   },

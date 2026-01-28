@@ -41,6 +41,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
+import UploadLogsContent from "@/components/settings/UploadLogsContent";
 
 interface SettingsSection {
   id: string;
@@ -132,6 +133,7 @@ const sections: SettingsSection[] = [
   { id: "security", title: "보안", icon: Shield },
   { id: "integrations", title: "외부 연동", icon: Link },
   { id: "system", title: "시스템", icon: Database },
+  { id: "upload-logs", title: "업로드 로그", icon: Upload },
 ];
 
 export default function SettingsPage() {
@@ -1187,7 +1189,7 @@ export default function SettingsPage() {
                         </div>
                         <p className={`text-sm font-medium ${backupSettingsData.settings.cloudBackupEnabled ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
                           {backupSettingsData.settings.cloudBackupEnabled
-                            ? backupSettingsData.settings.cloudProvider?.toUpperCase() || '연결됨'
+                            ? 'R2 연결됨'
                             : '미설정'}
                         </p>
                         <p className="text-xs text-[var(--text-muted)] mt-1">
@@ -1412,6 +1414,9 @@ export default function SettingsPage() {
               </div>
             </>
           )}
+
+          {/* Upload Logs Section */}
+          {activeSection === "upload-logs" && <UploadLogsContent />}
         </div>
       </div>
 
@@ -1731,7 +1736,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--glass-bg)]">
                 <div>
                   <p className="font-medium text-[var(--text-primary)]">클라우드 백업 활성화</p>
-                  <p className="text-sm text-[var(--text-muted)]">AWS S3 또는 Google Cloud Storage로 백업</p>
+                  <p className="text-sm text-[var(--text-muted)]">Cloudflare R2로 백업 (10GB 무료)</p>
                 </div>
                 <button
                   onClick={() => updateBackupSettingsMutation.mutate({
@@ -1749,22 +1754,24 @@ export default function SettingsPage() {
               </div>
 
               {backupSettingsData.settings.cloudBackupEnabled && (
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                    클라우드 제공자
-                  </label>
-                  <select
-                    className="input w-full"
-                    value={backupSettingsData.settings.cloudProvider || ''}
-                    onChange={(e) => updateBackupSettingsMutation.mutate({ cloudProvider: e.target.value || null })}
-                  >
-                    <option value="">선택하세요</option>
-                    <option value="s3">AWS S3</option>
-                    <option value="gcs">Google Cloud Storage</option>
-                  </select>
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    환경 변수에서 인증 정보를 설정해야 합니다.
-                  </p>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-[var(--info-50)] border border-[var(--info-200)]">
+                    <p className="text-sm font-medium text-[var(--info-700)]">Cloudflare R2 설정 필요</p>
+                    <p className="text-xs text-[var(--info-600)] mt-1">
+                      환경 변수에 R2 인증 정보를 설정해야 합니다:
+                    </p>
+                    <ul className="text-xs text-[var(--info-600)] mt-2 space-y-1 font-mono">
+                      <li>• R2_ACCOUNT_ID</li>
+                      <li>• R2_ACCESS_KEY_ID</li>
+                      <li>• R2_SECRET_ACCESS_KEY</li>
+                      <li>• R2_BUCKET_NAME</li>
+                    </ul>
+                  </div>
+                  <input
+                    type="hidden"
+                    value="r2"
+                    onChange={(e) => updateBackupSettingsMutation.mutate({ cloudProvider: e.target.value })}
+                  />
                 </div>
               )}
             </div>
