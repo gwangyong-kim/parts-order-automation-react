@@ -57,7 +57,7 @@ async function getDashboardStats() {
       prisma.order.count({ where: { status: "DRAFT" } }),
       // 최근 거래 내역
       prisma.transaction.findMany({
-        take: 5,
+        take: 3,
         orderBy: { createdAt: "desc" },
         include: { part: true },
       }),
@@ -105,7 +105,7 @@ async function getDashboardStats() {
       WHERE i.current_qty <= p.safety_stock AND p.is_active = true
     `;
 
-    // 저재고 품목 목록 (표시용, 5개 제한)
+    // 저재고 품목 목록 (표시용, 3개 제한)
     const lowStockParts = await prisma.$queryRaw<
       { id: number; partName: string; currentQty: number; safetyStock: number }[]
     >`
@@ -114,7 +114,7 @@ async function getDashboardStats() {
       JOIN inventory i ON p.id = i.part_id
       WHERE i.current_qty <= p.safety_stock AND p.is_active = true
       ORDER BY (i.current_qty - p.safety_stock) ASC
-      LIMIT 5
+      LIMIT 3
     `;
 
     // 지난달 저재고 수 (트렌드 계산용)
@@ -241,54 +241,54 @@ export default async function DashboardPage() {
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Low Stock Alert */}
-        <div className="glass-card p-6 animate-slide-up stagger-4">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-5 bg-gradient-to-b from-[var(--warning-500)] to-[var(--warning-600)] rounded-full" />
+        <div className="glass-card p-5 animate-slide-up stagger-4">
+          <h2 className="text-base font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+            <span className="w-1 h-4 bg-gradient-to-b from-[var(--warning-500)] to-[var(--warning-600)] rounded-full" />
             저재고 알림
           </h2>
           {stats.lowStockParts.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {stats.lowStockParts.map((part, index) => (
                 <div
                   key={part.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
+                  className="flex items-center justify-between p-3 rounded-lg bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div>
-                    <p className="font-medium text-[var(--text-primary)]">
+                    <p className="font-medium text-[var(--text-primary)] text-sm">
                       {part.partName}
                     </p>
-                    <p className="text-sm text-[var(--text-muted)] tabular-nums mt-0.5">
+                    <p className="text-xs text-[var(--text-muted)] tabular-nums">
                       안전재고: {part.safetyStock}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-[var(--danger-600)] tabular-nums text-lg">
+                    <p className="font-bold text-[var(--danger-600)] tabular-nums">
                       {part.currentQty}
                     </p>
-                    <span className="badge badge-danger">부족</span>
+                    <span className="badge badge-danger text-xs">부족</span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-[var(--success-50)] flex items-center justify-center mb-3">
-                <Package className="w-6 h-6 text-[var(--success-500)]" />
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="w-10 h-10 rounded-full bg-[var(--success-50)] flex items-center justify-center mb-2">
+                <Package className="w-5 h-5 text-[var(--success-500)]" />
               </div>
-              <p className="text-[var(--text-muted)]">저재고 품목이 없습니다.</p>
+              <p className="text-sm text-[var(--text-muted)]">저재고 품목이 없습니다.</p>
             </div>
           )}
         </div>
 
         {/* Recent Transactions */}
-        <div className="glass-card p-6 animate-slide-up stagger-5">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-5 bg-gradient-to-b from-[var(--primary-500)] to-[var(--primary-600)] rounded-full" />
+        <div className="glass-card p-5 animate-slide-up stagger-5">
+          <h2 className="text-base font-semibold text-[var(--text-primary)] mb-3 flex items-center gap-2">
+            <span className="w-1 h-4 bg-gradient-to-b from-[var(--primary-500)] to-[var(--primary-600)] rounded-full" />
             최근 입출고
           </h2>
           {stats.recentTransactions.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {stats.recentTransactions.map((tx, index) => {
                 // ADJUSTMENT의 경우 실제 변화량 계산, 그 외는 quantity 사용
                 const changeAmount = tx.transactionType === "ADJUSTMENT"
@@ -301,28 +301,28 @@ export default async function DashboardPage() {
                 return (
                   <div
                     key={tx.id}
-                    className="flex items-center justify-between p-4 rounded-xl bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
+                    className="flex items-center justify-between p-3 rounded-lg bg-[var(--gray-50)] hover:bg-[var(--gray-100)] transition-colors"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                           isPositive
                             ? "bg-[var(--success-100)] text-[var(--success-600)]"
                             : "bg-[var(--danger-100)] text-[var(--danger-600)]"
                         }`}
                       >
                         {isPositive ? (
-                          <ArrowDownRight className="w-5 h-5" />
+                          <ArrowDownRight className="w-4 h-4" />
                         ) : (
-                          <ArrowUpRight className="w-5 h-5" />
+                          <ArrowUpRight className="w-4 h-4" />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-[var(--text-primary)]">
+                        <p className="font-medium text-[var(--text-primary)] text-sm">
                           {tx.part.partName}
                         </p>
-                        <p className="text-sm text-[var(--text-muted)] mono">
+                        <p className="text-xs text-[var(--text-muted)] mono">
                           {tx.transactionCode}
                           {tx.transactionType === "ADJUSTMENT" && (
                             <span className="ml-1 text-[var(--info)]">(조정)</span>
@@ -332,7 +332,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p
-                        className={`font-bold tabular-nums text-lg ${
+                        className={`font-bold tabular-nums ${
                           isPositive
                             ? "text-[var(--success-600)]"
                             : "text-[var(--danger-600)]"
@@ -349,11 +349,11 @@ export default async function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-[var(--gray-100)] flex items-center justify-center mb-3">
-                <TrendingUp className="w-6 h-6 text-[var(--gray-400)]" />
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="w-10 h-10 rounded-full bg-[var(--gray-100)] flex items-center justify-center mb-2">
+                <TrendingUp className="w-5 h-5 text-[var(--gray-400)]" />
               </div>
-              <p className="text-[var(--text-muted)]">최근 입출고 내역이 없습니다.</p>
+              <p className="text-sm text-[var(--text-muted)]">최근 입출고 내역이 없습니다.</p>
             </div>
           )}
         </div>

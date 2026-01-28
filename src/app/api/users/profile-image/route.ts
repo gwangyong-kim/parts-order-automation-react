@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { unlink } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
 import sharp from "sharp";
 import prisma from "@/lib/prisma";
 import { handleApiError, badRequest, unauthorized } from "@/lib/api-error";
@@ -37,65 +34,48 @@ export async function POST(request: Request) {
       throw badRequest("파일 크기는 5MB를 초과할 수 없습니다.");
     }
 
-    // 현재 사용자 정보 조회 (기존 프로필 이미지 삭제용)
+    // 현재 사용자 정보 조회
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, profileImage: true },
+      select: { id: true },
     });
 
     if (!user) {
       throw unauthorized("사용자를 찾을 수 없습니다.");
     }
 
-    // 기존 프로필 이미지 삭제
-    if (user.profileImage) {
-      // /api/uploads/... 경로를 /uploads/...로 변환
-      const relativePath = user.profileImage.replace("/api/uploads/", "/uploads/");
-      const oldImagePath = path.join(process.cwd(), "public", relativePath);
-      if (existsSync(oldImagePath)) {
-        try {
-          await unlink(oldImagePath);
-        } catch {
-          // 삭제 실패해도 계속 진행
-        }
-      }
-    }
-
-    // 파일 저장 (sharp로 리사이징 및 품질 개선)
+    // 이미지를 Base64로 변환 (sharp로 리사이징 후)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 파일명 생성 (항상 webp로 저장하여 품질 유지)
-    const fileName = `profile_${userId}_${Date.now()}.webp`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "profiles");
-    const filePath = path.join(uploadDir, fileName);
-
-    // 이미지 리사이징: 200x200, 고품질 webp로 저장
-    await sharp(buffer)
+    // 이미지 리사이징: 200x200, 고품질 webp로 변환
+    const processedBuffer = await sharp(buffer)
       .resize(200, 200, {
         fit: "cover",
         position: "center",
       })
       .webp({ quality: 90 })
-      .toFile(filePath);
+      .toBuffer();
 
-    // DB 업데이트 (API 경로로 저장)
-    const profileImageUrl = `/api/uploads/profiles/${fileName}`;
+    // Base64 Data URL 생성
+    const base64Image = `data:image/webp;base64,${processedBuffer.toString("base64")}`;
+
+    // DB 업데이트 (Base64 데이터로 저장)
     await prisma.user.update({
       where: { id: userId },
-      data: { profileImage: profileImageUrl },
+      data: { profileImage: base64Image },
     });
 
     return NextResponse.json({
       message: "프로필 이미지가 업데이트되었습니다.",
-      profileImage: profileImageUrl,
+      profileImage: base64Image,
     });
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE() {
   try {
     // 인증된 사용자만 접근 가능
     const authResult = await requireAuth();
@@ -109,28 +89,14 @@ export async function DELETE(request: Request) {
     // 현재 사용자 정보 조회
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, profileImage: true },
+      select: { id: true },
     });
 
     if (!user) {
       throw unauthorized("사용자를 찾을 수 없습니다.");
     }
 
-    // 기존 프로필 이미지 삭제
-    if (user.profileImage) {
-      // /api/uploads/... 경로를 /uploads/...로 변환
-      const relativePath = user.profileImage.replace("/api/uploads/", "/uploads/");
-      const oldImagePath = path.join(process.cwd(), "public", relativePath);
-      if (existsSync(oldImagePath)) {
-        try {
-          await unlink(oldImagePath);
-        } catch {
-          // 삭제 실패해도 계속 진행
-        }
-      }
-    }
-
-    // DB 업데이트
+    // DB 업데이트 (Base64 데이터 삭제)
     await prisma.user.update({
       where: { id: userId },
       data: { profileImage: null },

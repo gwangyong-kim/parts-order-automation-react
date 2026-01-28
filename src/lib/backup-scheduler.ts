@@ -8,6 +8,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
 import prisma from "./prisma";
+import {
+  isGCSConfigured,
+  uploadBackupWithMeta,
+  cleanupOldGCSBackups,
+} from "./gcs-storage";
 
 const DATA_DIR = process.env.NODE_ENV === "production" ? "/app/data" : "./prisma";
 const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
@@ -21,6 +26,11 @@ export interface BackupResult {
   checksum?: string;
   duration?: number;
   error?: string;
+  cloudBackup?: {
+    success: boolean;
+    fileName?: string;
+    error?: string;
+  };
 }
 
 export interface BackupOptions {
@@ -120,6 +130,37 @@ export async function createBackup(options: BackupOptions = {}): Promise<BackupR
     const stat = await fs.stat(backupPath);
     const duration = Date.now() - startTime;
 
+    // GCS 클라우드 백업 (설정된 경우)
+    let cloudBackupResult: BackupResult["cloudBackup"];
+    try {
+      const settings = await prisma.backupSettings.findFirst();
+      if (settings?.cloudBackupEnabled && isGCSConfigured()) {
+        const gcsResult = await uploadBackupWithMeta(backupPath, {
+          type: options.type || "MANUAL",
+          createdBy: options.createdBy || "system",
+          appVersion: APP_VERSION,
+          recordCounts,
+        });
+
+        cloudBackupResult = {
+          success: gcsResult.success,
+          fileName: gcsResult.fileName,
+          error: gcsResult.error,
+        };
+
+        // GCS 오래된 백업 정리
+        if (gcsResult.success && settings.maxBackupCount) {
+          await cleanupOldGCSBackups(settings.maxBackupCount);
+        }
+      }
+    } catch (gcsError) {
+      console.error("GCS 백업 오류:", gcsError);
+      cloudBackupResult = {
+        success: false,
+        error: gcsError instanceof Error ? gcsError.message : "GCS 업로드 실패",
+      };
+    }
+
     // 백업 히스토리 저장
     await prisma.backupHistory.create({
       data: {
@@ -133,6 +174,8 @@ export async function createBackup(options: BackupOptions = {}): Promise<BackupR
         appVersion: APP_VERSION,
         description: options.description,
         createdBy: options.createdBy,
+        cloudBackupStatus: cloudBackupResult?.success ? "UPLOADED" : cloudBackupResult ? "FAILED" : null,
+        cloudFileName: cloudBackupResult?.fileName || null,
       },
     });
 
@@ -142,6 +185,7 @@ export async function createBackup(options: BackupOptions = {}): Promise<BackupR
       fileSize: stat.size,
       checksum,
       duration,
+      cloudBackup: cloudBackupResult,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류";

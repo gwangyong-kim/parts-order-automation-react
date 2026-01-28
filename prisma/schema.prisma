@@ -634,23 +634,26 @@ model PickingItem {
 // ==================== Backup Management ====================
 
 model BackupHistory {
-  id           Int       @id @default(autoincrement())
-  fileName     String    @unique @map("file_name")
-  fileSize     Int       @map("file_size")
-  checksum     String?   // SHA-256 checksum
-  backupType   String    @default("MANUAL") @map("backup_type") // MANUAL, SCHEDULED, PRE_RESTORE, STARTUP
-  status       String    @default("COMPLETED") // COMPLETED, FAILED, IN_PROGRESS
-  duration     Int?      // Backup duration in milliseconds
-  recordCounts String?   @map("record_counts") // JSON string of table record counts
-  appVersion   String?   @map("app_version")
-  description  String?
-  createdBy    String?   @map("created_by")
-  errorMessage String?   @map("error_message")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id                Int       @id @default(autoincrement())
+  fileName          String    @unique @map("file_name")
+  fileSize          Int       @map("file_size")
+  checksum          String?   // SHA-256 checksum
+  backupType        String    @default("MANUAL") @map("backup_type") // MANUAL, SCHEDULED, PRE_RESTORE, STARTUP
+  status            String    @default("COMPLETED") // COMPLETED, FAILED, IN_PROGRESS
+  duration          Int?      // Backup duration in milliseconds
+  recordCounts      String?   @map("record_counts") // JSON string of table record counts
+  appVersion        String?   @map("app_version")
+  description       String?
+  createdBy         String?   @map("created_by")
+  errorMessage      String?   @map("error_message")
+  cloudBackupStatus String?   @map("cloud_backup_status") // UPLOADED, FAILED, null
+  cloudFileName     String?   @map("cloud_file_name") // GCS file path
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   @@index([backupType])
   @@index([status])
   @@index([createdAt])
+  @@index([cloudBackupStatus])
   @@map("backup_history")
 }
 

@@ -85,6 +85,11 @@ COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 COPY --from=builder /app/node_modules/prebuild-install ./node_modules/prebuild-install
 
+# Copy Google Cloud Storage and all dependencies for cloud backup
+# Install GCS dependencies directly in runner stage for proper dependency resolution
+COPY --from=builder /app/package.json ./package-gcs.json
+RUN npm install @google-cloud/storage --no-save --legacy-peer-deps 2>/dev/null || true
+
 # Copy entrypoint script and fix line endings (Windows CRLF to Unix LF)
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh

@@ -64,16 +64,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-2.5 p-2 pl-2 pr-3 rounded-xl hover:bg-[var(--gray-100)] transition-all"
           >
-            <div className="header-user-avatar w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+            <div className="header-user-avatar w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ring-2 ring-[var(--gray-200)] ring-offset-1">
               {userProfile?.profileImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={userProfile.profileImage}
                   alt="프로필"
                   className="w-full h-full object-cover"
+                  style={{ imageRendering: 'auto' }}
                 />
               ) : (
-                <User className="w-4 h-4 text-white" />
+                <User className="w-5 h-5 text-white" />
               )}
             </div>
             <div className="hidden md:block text-left">

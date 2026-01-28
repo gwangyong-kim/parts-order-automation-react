@@ -45,3 +45,12 @@ next-env.d.ts
 
 # Backup files
 backups/
+
+# Secrets (GCP service account keys, etc.)
+secrets/*
+!secrets/README.md
+!secrets/.gitkeep
+*-key.json
+*-credentials.json
+service-account*.json
+gcs-*.json
