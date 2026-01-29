@@ -78,6 +78,9 @@ export async function GET(request: Request, { params }: Params) {
 
     const partsMap = new Map(partsWithSuppliers.map(p => [p.id, p]));
 
+    // partId별 기존 발주 정보 맵 (현재 스키마에 Order-SalesOrder 연결이 없으므로 빈 맵 사용)
+    const existingOrderMap = new Map<number, { orderCode: string; status: string; orderQty: number }>();
+
     // Calculate material requirements for this sales order
     const materialRequirements: Record<number, {
       partId: number;
@@ -97,6 +100,9 @@ export async function GET(request: Request, { params }: Params) {
       leadTimeDays: number;
       unitPrice: number;
       minOrderQty: number;
+      alreadyOrdered: boolean;
+      existingOrderCode: string | null;
+      existingOrderQty: number;
     }> = {};
 
     for (const item of salesOrder.items) {
@@ -114,6 +120,9 @@ export async function GET(request: Request, { params }: Params) {
             0
           );
           const availableStock = currentStock + incomingQty - reservedQty;
+
+          // 기존 발주 정보 확인
+          const existingOrder = existingOrderMap.get(part.id);
 
           materialRequirements[part.id] = {
             partId: part.id,
@@ -133,6 +142,9 @@ export async function GET(request: Request, { params }: Params) {
             leadTimeDays: partWithSupplier?.supplier?.leadTimeDays ?? 7,
             unitPrice: partWithSupplier?.unitPrice ?? 0,
             minOrderQty: partWithSupplier?.minOrderQty ?? 1,
+            alreadyOrdered: !!existingOrder,
+            existingOrderCode: existingOrder?.orderCode ?? null,
+            existingOrderQty: existingOrder?.orderQty ?? 0,
           };
         }
 
@@ -184,6 +196,9 @@ export async function GET(request: Request, { params }: Params) {
         recommendedOrderQty,
         urgency,
         estimatedCost: recommendedOrderQty * mat.unitPrice,
+        alreadyOrdered: mat.alreadyOrdered,
+        existingOrderCode: mat.existingOrderCode,
+        existingOrderQty: mat.existingOrderQty,
       };
     });
 

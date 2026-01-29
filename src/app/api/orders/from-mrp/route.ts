@@ -23,11 +23,12 @@ async function generateOrderCode(): Promise<string> {
 interface MrpOrderItem {
   partId: number;
   orderQty: number;
+  salesOrderId?: number | null;  // MRP 결과의 수주 ID
 }
 
 interface FromMrpRequest {
   items: MrpOrderItem[];
-  salesOrderId?: number;  // SO 연결 (추적용)
+  salesOrderId?: number;  // SO 연결 (추적용) - 단일 수주인 경우
   skipDraft?: boolean;    // true면 ORDERED 상태로 바로 생성
   orderDate?: string;
   expectedDate?: string;
@@ -61,8 +62,42 @@ export async function POST(request: Request) {
     // 품목 맵 생성
     const partMap = new Map(parts.map((p) => [p.id, p]));
 
-    // 공급업체별 그룹핑
-    const bySupplier = new Map<number, { supplier: typeof parts[0]["supplier"]; items: Array<{ part: typeof parts[0]; orderQty: number }> }>();
+    // 수주 ID 목록 수집 (MRP 상태 업데이트용)
+    const itemSalesOrderIds = items
+      .map((item) => item.salesOrderId)
+      .filter((id): id is number => id != null);
+    const allSalesOrderIds = salesOrderId
+      ? [...new Set([salesOrderId, ...itemSalesOrderIds])]
+      : [...new Set(itemSalesOrderIds)];
+
+    // 수주 ID 목록 수집 (중복 제거)
+    const salesOrderIds = [...new Set(items.map((item) => item.salesOrderId).filter((id): id is number => id != null))];
+
+    // 수주 정보 일괄 조회
+    const salesOrders = salesOrderIds.length > 0
+      ? await prisma.salesOrder.findMany({
+          where: { id: { in: salesOrderIds } },
+          select: { id: true, orderCode: true, project: true },
+        })
+      : [];
+    const salesOrderMap = new Map(salesOrders.map((so) => [so.id, so]));
+
+    // 공급업체 + 프로젝트별 그룹핑
+    // 키: "supplierId-salesOrderId" 또는 "supplierId-none"
+    interface GroupItem {
+      part: typeof parts[0];
+      orderQty: number;
+      salesOrderId: number | null;
+    }
+    interface OrderGroup {
+      supplierId: number;
+      supplier: typeof parts[0]["supplier"];
+      salesOrderId: number | null;
+      salesOrderCode: string | null;
+      project: string | null;
+      items: GroupItem[];
+    }
+    const groupMap = new Map<string, OrderGroup>();
 
     for (const item of items) {
       const part = partMap.get(item.partId);
@@ -81,20 +116,32 @@ export async function POST(request: Request) {
       }
 
       const supplierId = part.supplierId;
-      if (!bySupplier.has(supplierId)) {
-        bySupplier.set(supplierId, {
+      // salesOrderId 결정: item에 있으면 사용, 없으면 request body의 salesOrderId 사용
+      const soId = item.salesOrderId ?? salesOrderId ?? null;
+      const salesOrder = soId ? salesOrderMap.get(soId) : null;
+
+      // 그룹 키: 공급업체ID + 프로젝트명 (프로젝트가 같으면 같은 발주로 묶음)
+      const projectKey = salesOrder?.project || "none";
+      const groupKey = `${supplierId}-${projectKey}`;
+
+      if (!groupMap.has(groupKey)) {
+        groupMap.set(groupKey, {
+          supplierId,
           supplier: part.supplier,
+          salesOrderId: soId,
+          salesOrderCode: salesOrder?.orderCode || null,
+          project: salesOrder?.project || null,
           items: [],
         });
       }
-      bySupplier.get(supplierId)!.items.push({ part, orderQty: item.orderQty });
+      groupMap.get(groupKey)!.items.push({ part, orderQty: item.orderQty, salesOrderId: soId });
     }
 
     const parsedOrderDate = orderDate ? new Date(orderDate) : new Date();
     const createdOrders = [];
 
-    // 공급업체별로 발주서 생성
-    for (const [supplierId, group] of bySupplier) {
+    // 공급업체 + 프로젝트별로 발주서 생성
+    for (const [, group] of groupMap) {
       const orderCode = await generateOrderCode();
 
       // 발주 금액 계산
@@ -117,16 +164,22 @@ export async function POST(request: Request) {
       const orderStatus = skipDraft ? "ORDERED" : "DRAFT";
       const itemStatus = skipDraft ? "ORDERED" : "PENDING";
 
+      // 비고 생성 (프로젝트 정보 포함)
+      const autoNotes = group.project
+        ? `MRP 기반 자동 발주 (${group.items.length}개 품목) - [${group.project}]`
+        : `MRP 기반 자동 발주 (${group.items.length}개 품목)`;
+
       // 발주서 생성
       const order = await prisma.order.create({
         data: {
           orderCode,
-          supplierId,
+          supplierId: group.supplierId,
+          project: group.project,
           orderDate: parsedOrderDate,
           expectedDate: calcExpectedDate,
           status: orderStatus,
           totalAmount,
-          notes: notes || `MRP 기반 자동 발주 (${group.items.length}개 품목)${salesOrderId ? ` - SO #${salesOrderId}` : ""}`,
+          notes: notes || autoNotes,
           items: {
             create: group.items.map((item) => ({
               partId: item.part.id,
@@ -151,6 +204,7 @@ export async function POST(request: Request) {
         id: order.id,
         orderCode: order.orderCode,
         supplierName: order.supplier?.name || "Unknown",
+        project: group.project,
         itemCount: order.items.length,
         totalAmount: order.totalAmount,
         status: order.status,
@@ -161,6 +215,18 @@ export async function POST(request: Request) {
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
         })),
+      });
+    }
+
+    // MrpResult 상태 업데이트: 발주된 항목은 ORDERED로 변경
+    if (allSalesOrderIds.length > 0) {
+      await prisma.mrpResult.updateMany({
+        where: {
+          salesOrderId: { in: allSalesOrderIds },
+          partId: { in: partIds },
+          status: { not: "ORDERED" },
+        },
+        data: { status: "ORDERED" },
       });
     }
 

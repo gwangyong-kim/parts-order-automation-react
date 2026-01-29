@@ -78,11 +78,12 @@ export default function SalesOrderForm({
   // Fetch products on mount
   useEffect(() => {
     if (isOpen) {
-      fetch("/api/products")
+      fetch("/api/products?pageSize=1000")
         .then((res) => res.json())
         .then((data) => {
-          if (Array.isArray(data)) {
-            setProducts(data);
+          const productList = data.data || data;
+          if (Array.isArray(productList)) {
+            setProducts(productList);
           }
         })
         .catch((err) => console.error("Failed to fetch products:", err));

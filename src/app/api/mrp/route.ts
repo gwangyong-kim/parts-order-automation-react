@@ -27,6 +27,7 @@ export async function GET() {
           select: {
             id: true,
             orderCode: true,
+            project: true,
             dueDate: true,
           },
         },
@@ -52,6 +53,11 @@ export async function GET() {
         supplier: result.part.supplier,
       } : null,
       salesOrderId: result.salesOrderId,
+      salesOrder: result.salesOrder ? {
+        id: result.salesOrder.id,
+        orderCode: result.salesOrder.orderCode,
+        project: result.salesOrder.project,
+      } : null,
       totalRequirement: result.grossRequirement,
       currentStock: result.currentStock,
       incomingQty: result.incomingQty,

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   ClipboardCheck,
   Play,
@@ -11,9 +20,10 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Filter,
-  ChevronDown,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -56,12 +66,16 @@ const priorityConfig: Record<PickingTaskPriority, { label: string; color: string
   LOW: { label: "낮음", color: "text-[var(--text-muted)]" },
 };
 
+const columnHelper = createColumnHelper<PickingTask>();
+
 export default function PickingPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PickingTaskStatus | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<PickingTask | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: tasks, isLoading, error } = useQuery({
     queryKey: ["picking-tasks"],
@@ -98,9 +112,12 @@ export default function PickingPage() {
     onError: () => toast.error("작업 삭제에 실패했습니다."),
   });
 
-  const filteredTasks = tasks?.filter(
-    (task) => statusFilter === "all" || task.status === statusFilter
-  );
+  const filteredTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter(
+      (task) => statusFilter === "all" || task.status === statusFilter
+    );
+  }, [tasks, statusFilter]);
 
   // Stats
   const stats = {
@@ -109,6 +126,184 @@ export default function PickingPage() {
     completed: tasks?.filter((t) => t.status === "COMPLETED").length || 0,
     total: tasks?.length || 0,
   };
+
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 작업 코드
+      columnHelper.accessor("taskCode", {
+        header: "작업 코드",
+        size: 130,
+        minSize: 100,
+        maxSize: 180,
+        cell: (info) => (
+          <Link
+            href={`/picking/${info.row.original.id}`}
+            className="font-mono text-sm text-[var(--primary)] hover:underline"
+          >
+            {info.getValue()}
+          </Link>
+        ),
+      }),
+      // 수주
+      columnHelper.accessor((row) => row.salesOrder?.orderCode ?? "", {
+        id: "salesOrder",
+        header: "수주",
+        size: 150,
+        minSize: 120,
+        maxSize: 200,
+        cell: ({ row }) =>
+          row.original.salesOrder ? (
+            <div>
+              <p className="font-medium">{row.original.salesOrder.orderCode}</p>
+              {row.original.salesOrder.project && (
+                <p className="text-sm text-[var(--text-muted)]">
+                  {row.original.salesOrder.project}
+                </p>
+              )}
+            </div>
+          ) : (
+            <span className="text-[var(--text-muted)]">-</span>
+          ),
+      }),
+      // 우선순위
+      columnHelper.accessor("priority", {
+        header: "우선순위",
+        size: 100,
+        minSize: 80,
+        maxSize: 130,
+        cell: (info) => {
+          const priority = priorityConfig[info.getValue()];
+          return (
+            <span className={`${priority.color} flex items-center justify-center gap-1`}>
+              {info.getValue() === "URGENT" && (
+                <AlertTriangle className="w-4 h-4 inline" />
+              )}
+              {priority.label}
+            </span>
+          );
+        },
+      }),
+      // 진행률
+      columnHelper.accessor((row) => row.totalItems > 0 ? (row.pickedItems / row.totalItems) * 100 : 0, {
+        id: "progress",
+        header: "진행률",
+        size: 150,
+        minSize: 130,
+        maxSize: 200,
+        cell: ({ row }) => {
+          const progress = row.original.totalItems > 0
+            ? Math.round((row.original.pickedItems / row.original.totalItems) * 100)
+            : 0;
+          return (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[var(--primary)] transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="text-sm text-[var(--text-muted)] w-16 text-right tabular-nums">
+                {row.original.pickedItems}/{row.original.totalItems}
+              </span>
+            </div>
+          );
+        },
+      }),
+      // 상태
+      columnHelper.accessor("status", {
+        header: "상태",
+        size: 100,
+        minSize: 80,
+        maxSize: 130,
+        cell: (info) => {
+          const status = statusConfig[info.getValue()];
+          const StatusIcon = status.icon;
+          return (
+            <span className={`badge ${status.color} inline-flex items-center gap-1`}>
+              <StatusIcon className="w-3 h-3" />
+              {status.label}
+            </span>
+          );
+        },
+      }),
+      // 담당자
+      columnHelper.accessor("assignedTo", {
+        header: "담당자",
+        size: 120,
+        minSize: 90,
+        maxSize: 160,
+        cell: (info) =>
+          info.getValue() || (
+            <span className="text-[var(--text-muted)]">미배정</span>
+          ),
+      }),
+      // 작업
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 140,
+        minSize: 120,
+        maxSize: 180,
+        enableResizing: false,
+        cell: ({ row }) => {
+          const task = row.original;
+          return (
+            <div className="flex items-center justify-center gap-2">
+              {task.status === "PENDING" && (
+                <button
+                  onClick={() => handleStartTask(task.id)}
+                  className="btn btn-primary btn-sm"
+                  disabled={startMutation.isPending}
+                >
+                  <Play className="w-4 h-4" />
+                  시작
+                </button>
+              )}
+              {task.status === "IN_PROGRESS" && (
+                <Link
+                  href={`/floor-map?task=${task.id}`}
+                  className="btn btn-primary btn-sm"
+                >
+                  계속
+                </Link>
+              )}
+              {task.status === "COMPLETED" && (
+                <Link
+                  href={`/floor-map?task=${task.id}`}
+                  className="btn-secondary btn-sm"
+                >
+                  상세
+                </Link>
+              )}
+              {/* 삭제 버튼 - 완료되지 않은 작업만 */}
+              {task.status !== "COMPLETED" && (
+                <button
+                  onClick={() => setDeleteTarget(task)}
+                  className="p-2 text-[var(--danger)] hover:bg-[var(--danger)]/10 rounded-lg transition-colors"
+                  title="작업 삭제"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          );
+        },
+      }),
+    ],
+    [startMutation.isPending]
+  );
+
+  const table = useReactTable({
+    data: filteredTasks,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
+  });
 
   if (isLoading) {
     return (
@@ -212,9 +407,9 @@ export default function PickingPage() {
         </button>
       </div>
 
-      {/* Task List */}
-      <div className="glass-card overflow-hidden">
-        {!filteredTasks || filteredTasks.length === 0 ? (
+      {/* Task List - Tanstack Table */}
+      <div className="glass-card overflow-hidden table-container">
+        {filteredTasks.length === 0 ? (
           <div className="p-8 text-center">
             <ClipboardCheck className="w-16 h-16 mx-auto mb-4 text-[var(--text-muted)]" />
             <p className="text-[var(--text-muted)]">
@@ -226,145 +421,77 @@ export default function PickingPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full table-bordered">
-              <thead>
-                <tr className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    작업 코드
-                  </th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    수주
-                  </th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    우선순위
-                  </th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    진행률
-                  </th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    상태
-                  </th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    담당자
-                  </th>
-                  <th className="text-center px-6 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    작업
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTasks.map((task) => {
-                  const status = statusConfig[task.status];
-                  const priority = priorityConfig[task.priority];
-                  const StatusIcon = status.icon;
-                  const progress = task.totalItems > 0
-                    ? Math.round((task.pickedItems / task.totalItems) * 100)
-                    : 0;
-
-                  return (
-                    <tr
-                      key={task.id}
-                      className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]/50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <Link
-                          href={`/picking/${task.id}`}
-                          className="font-mono text-sm text-[var(--primary)] hover:underline"
+            <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+              <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        className="relative px-6 py-4 text-left text-sm font-semibold text-[var(--text-secondary)] whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: header.getSize() }}
+                      >
+                        <div
+                          className={`flex items-center gap-1 ${
+                            header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                          }`}
+                          onClick={header.column.getToggleSortingHandler()}
                         >
-                          {task.taskCode}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        {task.salesOrder ? (
-                          <div>
-                            <p className="font-medium">{task.salesOrder.orderCode}</p>
-                            {task.salesOrder.project && (
-                              <p className="text-sm text-[var(--text-muted)]">
-                                {task.salesOrder.project}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[var(--text-muted)]">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={priority.color}>
-                          {task.priority === "URGENT" && (
-                            <AlertTriangle className="w-4 h-4 inline mr-1" />
-                          )}
-                          {priority.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-[var(--gray-200)] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[var(--primary)] transition-all"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-[var(--text-muted)] w-16 text-right">
-                            {task.pickedItems}/{task.totalItems}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`badge ${status.color} inline-flex items-center gap-1`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {status.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {task.assignedTo || (
-                          <span className="text-[var(--text-muted)]">미배정</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {task.status === "PENDING" && (
-                            <button
-                              onClick={() => handleStartTask(task.id)}
-                              className="btn btn-primary btn-sm"
-                              disabled={startMutation.isPending}
-                            >
-                              <Play className="w-4 h-4" />
-                              시작
-                            </button>
-                          )}
-                          {task.status === "IN_PROGRESS" && (
-                            <Link
-                              href={`/floor-map?task=${task.id}`}
-                              className="btn btn-primary btn-sm"
-                            >
-                              계속
-                            </Link>
-                          )}
-                          {task.status === "COMPLETED" && (
-                            <Link
-                              href={`/floor-map?task=${task.id}`}
-                              className="btn-secondary btn-sm"
-                            >
-                              상세
-                            </Link>
-                          )}
-                          {/* 삭제 버튼 - 완료되지 않은 작업만 */}
-                          {task.status !== "COMPLETED" && (
-                            <button
-                              onClick={() => setDeleteTarget(task)}
-                              className="p-2 text-[var(--danger)] hover:bg-[var(--danger)]/10 rounded-lg transition-colors"
-                              title="작업 삭제"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getCanSort() && (
+                            <span className="text-[var(--text-muted)]">
+                              {header.column.getIsSorted() === "asc" ? (
+                                <ArrowUp className="w-3 h-3" />
+                              ) : header.column.getIsSorted() === "desc" ? (
+                                <ArrowDown className="w-3 h-3" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-50" />
+                              )}
+                            </span>
                           )}
                         </div>
+                        {/* 컬럼 리사이즈 핸들 */}
+                        {header.column.getCanResize() && (
+                          <div
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                            className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                              header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                            }`}
+                          />
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y divide-[var(--glass-border)]">
+                {table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)]/50 transition-colors"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-6 py-4 border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
-                    </tr>
-                  );
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {/* 테이블 하단 안내 */}
+        {filteredTasks.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
           </div>
         )}
       </div>

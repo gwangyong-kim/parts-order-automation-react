@@ -64,6 +64,9 @@ interface MaterialRequirement {
   recommendedOrderQty: number;
   urgency: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
   estimatedCost: number;
+  alreadyOrdered: boolean;
+  existingOrderCode: string | null;
+  existingOrderQty: number;
 }
 
 interface SalesOrder {
@@ -160,6 +163,17 @@ const statusIcons: Record<string, React.ElementType> = {
   CANCELLED: XCircle,
 };
 
+// 중복 발주 에러 타입
+interface DuplicateOrderError {
+  error: string;
+  duplicates: {
+    partId: number;
+    partCode: string;
+    partName: string;
+    existingOrderCode: string;
+  }[];
+}
+
 // 발주 생성 API 호출
 async function createOrderFromMrp(data: {
   items: { partId: number; orderQty: number }[];
@@ -175,6 +189,14 @@ async function createOrderFromMrp(data: {
   });
   if (!res.ok) {
     const error = await res.json();
+    if (res.status === 409 && error.duplicates) {
+      // 중복 발주 에러
+      const duplicateError = error as DuplicateOrderError;
+      const duplicateParts = duplicateError.duplicates
+        .map((d) => `${d.partCode} (${d.existingOrderCode})`)
+        .join(", ");
+      throw new Error(`중복 발주: ${duplicateParts}`);
+    }
     throw new Error(error.error || "발주 생성 실패");
   }
   return res.json();
@@ -659,7 +681,10 @@ export default function SalesOrderDetailPage({
 
       {/* Material Requirements */}
       {order.materialRequirements && order.materialRequirements.length > 0 && (() => {
-        const shortageParts = order.materialRequirements.filter(m => m.shortageQty > 0);
+        // 발주가 필요한 파츠: 부족량 > 0이고 아직 발주되지 않은 파츠
+        const shortageParts = order.materialRequirements.filter(m => m.shortageQty > 0 && !m.alreadyOrdered);
+        // 이미 발주된 파츠
+        const alreadyOrderedParts = order.materialRequirements.filter(m => m.alreadyOrdered);
         const hasShortage = shortageParts.length > 0;
         const selectedShortageParts = shortageParts.filter(m => selectedParts.has(m.partId));
         const allShortageSelected = hasShortage && selectedShortageParts.length === shortageParts.length;
@@ -717,10 +742,16 @@ export default function SalesOrderDetailPage({
                 </h2>
               </div>
               <div className="flex items-center gap-4 text-sm">
+                {alreadyOrderedParts.length > 0 && (
+                  <span className="flex items-center gap-1 text-[var(--success)]">
+                    <CheckCircle className="w-4 h-4" />
+                    발주완료 {alreadyOrderedParts.length}건
+                  </span>
+                )}
                 {hasShortage && (
                   <span className="flex items-center gap-1 text-[var(--danger)]">
                     <AlertTriangle className="w-4 h-4" />
-                    부족 {shortageParts.length}건
+                    발주필요 {shortageParts.length}건
                   </span>
                 )}
                 <span className="text-[var(--text-muted)]">
@@ -950,7 +981,12 @@ export default function SalesOrderDetailPage({
                           {mat.supplierName || "-"}
                         </td>
                         <td className="px-3 py-3 text-center">
-                          {isShortage ? (
+                          {mat.alreadyOrdered ? (
+                            <span className="badge badge-info flex items-center gap-1 w-fit mx-auto" title={`발주번호: ${mat.existingOrderCode}`}>
+                              <ShoppingCart className="w-3 h-3" />
+                              발주완료
+                            </span>
+                          ) : isShortage ? (
                             <span className={`badge ${colors.badge} flex items-center gap-1 w-fit mx-auto`}>
                               <AlertTriangle className="w-3 h-3" />
                               {urgencyLabels[mat.urgency]}

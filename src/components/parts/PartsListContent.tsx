@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   Package,
   Plus,
@@ -14,6 +23,9 @@ import {
   Edit2,
   Trash2,
   ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import PartForm from "@/components/forms/PartForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -77,6 +89,8 @@ async function deletePart(id: number): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete part");
 }
 
+const columnHelper = createColumnHelper<Part>();
+
 export default function PartsListContent() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -93,6 +107,8 @@ export default function PartsListContent() {
   const [filterCategory, setFilterCategory] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: parts, isLoading, error } = useQuery({
     queryKey: ["parts"],
@@ -263,19 +279,184 @@ export default function PartsListContent() {
     }
   };
 
-  const filteredParts = parts?.filter((part) => {
-    const matchesSearch =
-      part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.partName.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredParts = useMemo(() => {
+    return parts?.filter((part) => {
+      const matchesSearch =
+        part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        part.partName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesCategory = filterCategory === null || part.categoryId === filterCategory;
+      const matchesCategory = filterCategory === null || part.categoryId === filterCategory;
 
-    const matchesStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && part.isActive) ||
-      (filterStatus === "inactive" && !part.isActive);
+      const matchesStatus =
+        filterStatus === "all" ||
+        (filterStatus === "active" && part.isActive) ||
+        (filterStatus === "inactive" && !part.isActive);
 
-    return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory && matchesStatus;
+    }) || [];
+  }, [parts, searchTerm, filterCategory, filterStatus]);
+
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("partNumber", {
+        header: "파츠번호",
+        size: 130,
+        minSize: 100,
+        maxSize: 180,
+        cell: (info) => (
+          <Link
+            href={`/parts/${info.row.original.id}`}
+            className="text-[var(--primary)] hover:underline truncate block font-medium font-mono"
+            title={info.getValue()}
+          >
+            {info.getValue()}
+          </Link>
+        ),
+      }),
+      columnHelper.accessor("partName", {
+        header: "파츠명",
+        size: 180,
+        minSize: 120,
+        maxSize: 280,
+        cell: (info) => (
+          <span className="truncate block" title={info.getValue()}>
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("description", {
+        header: "규격",
+        size: 150,
+        minSize: 100,
+        maxSize: 220,
+        cell: (info) => (
+          <span className="truncate block text-[var(--text-secondary)]" title={info.getValue() || ""}>
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("storageLocation", {
+        header: "저장위치",
+        size: 100,
+        minSize: 80,
+        maxSize: 140,
+        cell: (info) => (
+          <span className="font-mono text-sm">
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("unit", {
+        header: "단위",
+        size: 70,
+        minSize: 60,
+        maxSize: 100,
+        cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor("unitPrice", {
+        header: "단가",
+        size: 110,
+        minSize: 90,
+        maxSize: 140,
+        cell: (info) => (
+          <span className="text-right tabular-nums block">
+            {"\u20A9"}{info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("safetyStock", {
+        header: "안전재고",
+        size: 90,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-right tabular-nums block">
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      columnHelper.accessor((row) => row.category?.name ?? "", {
+        id: "category",
+        header: "카테고리",
+        size: 110,
+        minSize: 90,
+        maxSize: 160,
+        cell: ({ row }) =>
+          row.original.category ? (
+            <span className="badge badge-info">{row.original.category.name}</span>
+          ) : (
+            "-"
+          ),
+      }),
+      columnHelper.accessor((row) => row.supplier?.name ?? "", {
+        id: "supplier",
+        header: "공급업체",
+        size: 140,
+        minSize: 100,
+        maxSize: 200,
+        cell: ({ row }) => (
+          <span className="truncate block" title={row.original.supplier?.name || ""}>
+            {row.original.supplier?.name || "-"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("isActive", {
+        header: "상태",
+        size: 80,
+        minSize: 70,
+        maxSize: 100,
+        cell: (info) => (
+          <span className={`badge ${info.getValue() ? "badge-success" : "badge-secondary"}`}>
+            {info.getValue() ? "활성" : "비활성"}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 90,
+        minSize: 80,
+        maxSize: 100,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-2">
+            {can("master-data", "edit") && (
+              <button
+                onClick={() => handleEdit(row.original)}
+                className="table-action-btn edit"
+                title="수정"
+                aria-label={`${row.original.partName} 수정`}
+              >
+                <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+            {can("master-data", "delete") && (
+              <button
+                onClick={() => handleDelete(row.original)}
+                className="table-action-btn delete"
+                title="삭제"
+                aria-label={`${row.original.partName} 삭제`}
+              >
+                <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+          </div>
+        ),
+      }),
+    ],
+    [can]
+  );
+
+  const table = useReactTable({
+    data: filteredParts,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   if (isLoading) {
@@ -411,34 +592,64 @@ export default function PartsListContent() {
         </div>
       </div>
 
-      {/* Parts Table */}
-      <div className="glass-card overflow-hidden">
+      {/* Parts Table - Tanstack Table */}
+      <div className="glass-card overflow-hidden table-container">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">파츠번호</th>
-                <th className="table-header table-col-name">파츠명</th>
-                <th className="table-header table-col-desc">규격</th>
-                <th className="table-header table-col-short">저장위치</th>
-                <th className="table-header table-col-short">단위</th>
-                <th className="table-header text-right table-col-amount">단가</th>
-                <th className="table-header text-right table-col-qty">안전재고</th>
-                <th className="table-header table-col-status">카테고리</th>
-                <th className="table-header table-col-name">공급업체</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredParts?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredParts.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <Package className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 파츠가 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("master-data", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
@@ -449,77 +660,20 @@ export default function PartsListContent() {
                   </td>
                 </tr>
               ) : (
-                filteredParts?.map((part) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={part.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium font-mono table-col-code">
-                      <Link
-                        href={`/parts/${part.id}`}
-                        className="text-[var(--primary)] hover:underline table-truncate block"
-                        title={part.partNumber}
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
                       >
-                        {part.partNumber}
-                      </Link>
-                    </td>
-                    <td className="table-cell table-col-name">
-                      <span className="table-truncate block" title={part.partName}>{part.partName}</span>
-                    </td>
-                    <td className="table-cell text-[var(--text-secondary)] table-col-desc">
-                      <span className="table-truncate block" title={part.description || ""}>{part.description || "-"}</span>
-                    </td>
-                    <td className="table-cell font-mono text-sm table-col-short">
-                      {part.storageLocation || "-"}
-                    </td>
-                    <td className="table-cell table-col-short">{part.unit}</td>
-                    <td className="table-cell text-right tabular-nums table-col-amount">
-                      ₩{part.unitPrice.toLocaleString()}
-                    </td>
-                    <td className="table-cell text-right tabular-nums table-col-qty">{part.safetyStock}</td>
-                    <td className="table-cell table-col-status">
-                      {part.category ? (
-                        <span className="badge badge-info">{part.category.name}</span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="table-cell table-col-name">
-                      <span className="table-truncate block" title={part.supplier?.name || ""}>{part.supplier?.name || "-"}</span>
-                    </td>
-                    <td className="table-cell table-col-status">
-                      <span
-                        className={`badge ${
-                          part.isActive ? "badge-success" : "badge-secondary"
-                        }`}
-                      >
-                        {part.isActive ? "활성" : "비활성"}
-                      </span>
-                    </td>
-                    <td className="table-cell text-center table-col-action">
-                      <div className="flex items-center justify-center gap-2">
-                        {can("master-data", "edit") && (
-                          <button
-                            onClick={() => handleEdit(part)}
-                            className="table-action-btn edit"
-                            title="수정"
-                            aria-label={`${part.partName} 수정`}
-                          >
-                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                        {can("master-data", "delete") && (
-                          <button
-                            onClick={() => handleDelete(part)}
-                            className="table-action-btn delete"
-                            title="삭제"
-                            aria-label={`${part.partName} 삭제`}
-                          >
-                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
@@ -527,19 +681,15 @@ export default function PartsListContent() {
           </table>
         </div>
 
-        {filteredParts && filteredParts.length > 0 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--glass-border)]">
+        {/* 테이블 하단 안내 */}
+        {filteredParts.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50">
             <p className="text-sm text-[var(--text-secondary)]">
               총 {filteredParts.length}개 파츠
             </p>
-            <div className="flex gap-2">
-              <button className="btn-secondary" disabled>
-                이전
-              </button>
-              <button className="btn-secondary" disabled>
-                다음
-              </button>
-            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+            </p>
           </div>
         )}
       </div>

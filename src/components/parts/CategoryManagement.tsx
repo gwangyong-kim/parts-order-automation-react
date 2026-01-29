@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   FolderTree,
   Plus,
@@ -9,6 +18,9 @@ import {
   Edit2,
   Trash2,
   Package,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -65,6 +77,8 @@ async function deleteCategory(id: number): Promise<void> {
   }
 }
 
+const columnHelper = createColumnHelper<Category>();
+
 export default function CategoryManagement() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -78,6 +92,8 @@ export default function CategoryManagement() {
     name: "",
     description: "",
   });
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: categories, isLoading, error } = useQuery({
     queryKey: ["categories"],
@@ -164,11 +180,115 @@ export default function CategoryManagement() {
     }
   };
 
-  const filteredCategories = categories?.filter(
-    (category) =>
-      category.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      category.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCategories = useMemo(() => {
+    if (!categories) return [];
+    return categories.filter(
+      (category) =>
+        category.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        category.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [categories, searchTerm]);
+
+  // 컬럼 정의
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("code", {
+        header: "코드",
+        size: 120,
+        minSize: 100,
+        maxSize: 160,
+        cell: (info) => (
+          <span className="font-mono text-sm bg-[var(--gray-100)] px-2 py-1 rounded">
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("name", {
+        header: "이름",
+        size: 180,
+        minSize: 140,
+        maxSize: 250,
+        cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+      }),
+      columnHelper.accessor("description", {
+        header: "설명",
+        size: 250,
+        minSize: 150,
+        maxSize: 400,
+        cell: (info) => (
+          <span className="text-[var(--text-secondary)] truncate block">
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor((row) => row._count?.parts ?? 0, {
+        id: "partsCount",
+        header: "파츠 수",
+        size: 100,
+        minSize: 80,
+        maxSize: 130,
+        cell: (info) => {
+          const count = info.getValue();
+          return (
+            <div className="text-center">
+              <span className={`badge ${count > 0 ? "badge-primary" : "badge-secondary"}`}>
+                {count}개
+              </span>
+            </div>
+          );
+        },
+      }),
+      ...(can("master-data", "edit") || can("master-data", "delete")
+        ? [
+            columnHelper.display({
+              id: "actions",
+              header: "작업",
+              size: 100,
+              minSize: 80,
+              maxSize: 120,
+              enableResizing: false,
+              cell: ({ row }) => (
+                <div className="flex items-center justify-center gap-1">
+                  {can("master-data", "edit") && (
+                    <button
+                      onClick={() => handleEdit(row.original)}
+                      className="table-action-btn edit"
+                      title="수정"
+                      aria-label={`${row.original.name} 수정`}
+                    >
+                      <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                    </button>
+                  )}
+                  {can("master-data", "delete") && (
+                    <button
+                      onClick={() => handleDelete(row.original)}
+                      className="table-action-btn delete"
+                      title="삭제"
+                      aria-label={`${row.original.name} 삭제`}
+                      disabled={(row.original._count?.parts || 0) > 0}
+                    >
+                      <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                    </button>
+                  )}
+                </div>
+              ),
+            }),
+          ]
+        : []),
+    ],
+    [can]
   );
+
+  const table = useReactTable({
+    data: filteredCategories,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
+  });
 
   if (isLoading) {
     return (
@@ -261,25 +381,59 @@ export default function CategoryManagement() {
         </div>
       </div>
 
-      {/* Categories Table */}
+      {/* Categories Table - Tanstack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">코드</th>
-                <th className="table-header">이름</th>
-                <th className="table-header">설명</th>
-                <th className="table-header text-center">파츠 수</th>
-                {(can("master-data", "edit") || can("master-data", "delete")) && (
-                  <th className="table-header text-center">작업</th>
-                )}
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-4 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredCategories?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={(can("master-data", "edit") || can("master-data", "delete")) ? 5 : 4} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <FolderTree className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 카테고리가 없습니다."}
@@ -295,58 +449,32 @@ export default function CategoryManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredCategories?.map((category) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={category.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell">
-                      <span className="font-mono text-sm bg-[var(--gray-100)] px-2 py-1 rounded">
-                        {category.code}
-                      </span>
-                    </td>
-                    <td className="table-cell font-medium">{category.name}</td>
-                    <td className="table-cell text-[var(--text-secondary)]">
-                      {category.description || "-"}
-                    </td>
-                    <td className="table-cell text-center tabular-nums">
-                      <span className={`badge ${(category._count?.parts || 0) > 0 ? "badge-primary" : "badge-secondary"}`}>
-                        {category._count?.parts || 0}개
-                      </span>
-                    </td>
-                    {(can("master-data", "edit") || can("master-data", "delete")) && (
-                      <td className="table-cell text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {can("master-data", "edit") && (
-                            <button
-                              onClick={() => handleEdit(category)}
-                              className="table-action-btn edit"
-                              title="수정"
-                              aria-label={`${category.name} 수정`}
-                            >
-                              <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                            </button>
-                          )}
-                          {can("master-data", "delete") && (
-                            <button
-                              onClick={() => handleDelete(category)}
-                              className="table-action-btn delete"
-                              title="삭제"
-                              aria-label={`${category.name} 삭제`}
-                              disabled={(category._count?.parts || 0) > 0}
-                            >
-                              <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                            </button>
-                          )}
-                        </div>
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-4 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
-                    )}
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredCategories.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       {/* Form Modal */}

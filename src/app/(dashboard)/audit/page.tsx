@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   ClipboardCheck,
   Plus,
@@ -23,6 +32,9 @@ import {
   FileText,
   ArrowRight,
   Info,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import AuditForm from "@/components/forms/AuditForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -110,6 +122,8 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "취소",
 };
 
+const columnHelper = createColumnHelper<AuditRecord>();
+
 export default function AuditPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -120,6 +134,8 @@ export default function AuditPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState<AuditRecord | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: audits, isLoading, error } = useQuery({
     queryKey: ["audits"],
@@ -212,6 +228,174 @@ export default function AuditPage() {
     }
   };
 
+  // TanStack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 실사코드
+      columnHelper.accessor("auditCode", {
+        header: "실사코드",
+        size: 130,
+        minSize: 100,
+        maxSize: 180,
+        cell: (info) => (
+          <span className="font-medium">{info.getValue()}</span>
+        ),
+      }),
+      // 유형
+      columnHelper.accessor("auditType", {
+        header: "유형",
+        size: 100,
+        minSize: 80,
+        maxSize: 130,
+        cell: (info) => (
+          <span className={`badge ${auditTypeColors[info.getValue()] || "badge-secondary"}`}>
+            {auditTypeLabels[info.getValue()] || info.getValue()}
+          </span>
+        ),
+      }),
+      // 실사일
+      columnHelper.accessor("auditDate", {
+        header: "실사일",
+        size: 110,
+        minSize: 100,
+        maxSize: 140,
+        cell: (info) => new Date(info.getValue()).toLocaleDateString("ko-KR"),
+      }),
+      // 상태
+      columnHelper.accessor("status", {
+        header: "상태",
+        size: 85,
+        minSize: 70,
+        maxSize: 100,
+        cell: (info) => (
+          <span className={`badge ${statusColors[info.getValue()]}`}>
+            {statusLabels[info.getValue()]}
+          </span>
+        ),
+      }),
+      // 총 품목
+      columnHelper.accessor("totalItems", {
+        header: "총 품목",
+        size: 85,
+        minSize: 70,
+        maxSize: 100,
+        cell: (info) => (
+          <span className="tabular-nums text-right block">{info.getValue()}</span>
+        ),
+      }),
+      // 일치
+      columnHelper.accessor("matchedItems", {
+        header: "일치",
+        size: 75,
+        minSize: 60,
+        maxSize: 90,
+        cell: (info) => (
+          <span className="tabular-nums text-right block text-[var(--success)]">
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      // 불일치
+      columnHelper.accessor("discrepancyItems", {
+        header: "불일치",
+        size: 80,
+        minSize: 65,
+        maxSize: 100,
+        cell: (info) => {
+          const value = info.getValue();
+          return value > 0 ? (
+            <span className="text-[var(--danger)] font-medium tabular-nums text-right block">
+              {value}
+            </span>
+          ) : (
+            <span className="text-[var(--text-muted)] tabular-nums text-right block">0</span>
+          );
+        },
+      }),
+      // 담당자
+      columnHelper.accessor((row) => row.createdBy?.name ?? "-", {
+        id: "createdBy",
+        header: "담당자",
+        size: 100,
+        minSize: 80,
+        maxSize: 140,
+        cell: (info) => info.getValue(),
+      }),
+      // 완료일
+      columnHelper.accessor("completedAt", {
+        header: "완료일",
+        size: 110,
+        minSize: 100,
+        maxSize: 140,
+        cell: (info) => {
+          const value = info.getValue();
+          return value ? (
+            <span className="text-[var(--text-secondary)]">
+              {new Date(value).toLocaleDateString("ko-KR")}
+            </span>
+          ) : (
+            "-"
+          );
+        },
+      }),
+      // 작업
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 130,
+        minSize: 120,
+        maxSize: 160,
+        enableResizing: false,
+        cell: ({ row }) => {
+          const audit = row.original;
+          return (
+            <div className="flex items-center justify-center gap-2">
+              <Link
+                href={`/audit/${audit.id}`}
+                className="table-action-btn edit"
+                title="상세보기"
+                aria-label={`${audit.auditCode} 상세보기`}
+              >
+                <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
+              </Link>
+              {audit.status === "PLANNED" && can("inventory", "edit") && (
+                <button
+                  onClick={() => handleStartAudit(audit)}
+                  className="table-action-btn edit"
+                  title="실사 시작"
+                  aria-label={`${audit.auditCode} 실사 시작`}
+                >
+                  <Play className="w-4 h-4 text-[var(--primary)]" />
+                </button>
+              )}
+              {can("inventory", "edit") && (
+                <button
+                  onClick={() => handleEdit(audit)}
+                  className="table-action-btn edit"
+                  title="수정"
+                  aria-label={`${audit.auditCode} 수정`}
+                >
+                  <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                </button>
+              )}
+              {can("inventory", "delete") && (
+                <button
+                  onClick={() => handleDelete(audit)}
+                  className="table-action-btn delete"
+                  title="삭제"
+                  aria-label={`${audit.auditCode} 삭제`}
+                >
+                  <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                </button>
+              )}
+            </div>
+          );
+        },
+      }),
+    ],
+    [can]
+  );
+
   // 내보내기 기능
   const handleExport = () => {
     if (!filteredAudits || filteredAudits.length === 0) {
@@ -248,10 +432,25 @@ export default function AuditPage() {
     toast.success("파일이 다운로드되었습니다.");
   };
 
-  const filteredAudits = audits?.filter((audit) => {
-    const matchesSearch = audit.auditCode.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === "ALL" || audit.auditType === typeFilter;
-    return matchesSearch && matchesType;
+  const filteredAudits = useMemo(() => {
+    if (!audits) return [];
+    return audits.filter((audit) => {
+      const matchesSearch = audit.auditCode.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = typeFilter === "ALL" || audit.auditType === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [audits, searchTerm, typeFilter]);
+
+  // TanStack Table 설정
+  const table = useReactTable({
+    data: filteredAudits,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   const inProgressCount = audits?.filter((a) => a.status === "IN_PROGRESS").length || 0;
@@ -376,28 +575,59 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {/* Audits Table */}
+      {/* Audits Table - TanStack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header">실사코드</th>
-                <th className="table-header">유형</th>
-                <th className="table-header">실사일</th>
-                <th className="table-header">상태</th>
-                <th className="table-header text-right">총 품목</th>
-                <th className="table-header text-right">일치</th>
-                <th className="table-header text-right">불일치</th>
-                <th className="table-header">담당자</th>
-                <th className="table-header">완료일</th>
-                <th className="table-header text-center">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredAudits?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredAudits.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <ClipboardCheck className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "실사 기록이 없습니다."}
@@ -413,92 +643,32 @@ export default function AuditPage() {
                   </td>
                 </tr>
               ) : (
-                filteredAudits?.map((audit) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={audit.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium">{audit.auditCode}</td>
-                    <td className="table-cell">
-                      <span className={`badge ${auditTypeColors[audit.auditType] || "badge-secondary"}`}>
-                        {auditTypeLabels[audit.auditType] || audit.auditType}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      {new Date(audit.auditDate).toLocaleDateString("ko-KR")}
-                    </td>
-                    <td className="table-cell">
-                      <span className={`badge ${statusColors[audit.status]}`}>
-                        {statusLabels[audit.status]}
-                      </span>
-                    </td>
-                    <td className="table-cell text-right tabular-nums">{audit.totalItems}</td>
-                    <td className="table-cell text-right text-[var(--success)] tabular-nums">
-                      {audit.matchedItems}
-                    </td>
-                    <td className="table-cell text-right">
-                      {audit.discrepancyItems > 0 ? (
-                        <span className="text-[var(--danger)] font-medium">
-                          {audit.discrepancyItems}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--text-muted)]">0</span>
-                      )}
-                    </td>
-                    <td className="table-cell">{audit.createdBy?.name || "-"}</td>
-                    <td className="table-cell text-[var(--text-secondary)]">
-                      {audit.completedAt
-                        ? new Date(audit.completedAt).toLocaleDateString("ko-KR")
-                        : "-"}
-                    </td>
-                    <td className="table-cell text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Link
-                          href={`/audit/${audit.id}`}
-                          className="table-action-btn edit"
-                          title="상세보기"
-                          aria-label={`${audit.auditCode} 상세보기`}
-                        >
-                          <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </Link>
-                        {audit.status === "PLANNED" && can("inventory", "edit") && (
-                          <button
-                            onClick={() => handleStartAudit(audit)}
-                            className="table-action-btn edit"
-                            title="실사 시작"
-                            aria-label={`${audit.auditCode} 실사 시작`}
-                          >
-                            <Play className="w-4 h-4 text-[var(--primary)]" />
-                          </button>
-                        )}
-                        {can("inventory", "edit") && (
-                          <button
-                            onClick={() => handleEdit(audit)}
-                            className="table-action-btn edit"
-                            title="수정"
-                            aria-label={`${audit.auditCode} 수정`}
-                          >
-                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                        {can("inventory", "delete") && (
-                          <button
-                            onClick={() => handleDelete(audit)}
-                            className="table-action-btn delete"
-                            title="삭제"
-                            aria-label={`${audit.auditCode} 삭제`}
-                          >
-                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredAudits.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       {/* Audit Form Modal */}

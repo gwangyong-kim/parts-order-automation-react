@@ -45,7 +45,19 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(timeout:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd //c \"taskkill /PID 4944 /F\")",
+      "Bash(npx prisma studio)",
+      "Bash(sqlite3:*)",
+      "Bash(cmd //c \"netstat -ano | findstr :3000\")",
+      "Bash(cmd //c \"taskkill /PID 37816 /F\")",
+      "Bash(cmd //c \"netstat -ano | findstr :3000 | findstr LISTENING\")",
+      "Bash(cmd //c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr :3000 ^| findstr LISTENING''\\) do taskkill /PID %a /F\")",
+      "Bash(cmd //c \"taskkill /PID 32700 /F\")",
+      "Bash(npm run db:seed:*)",
+      "Bash(npm run db:generate:*)",
+      "Bash(cmd /c \"timeout /t 5 /nobreak && npm run db:generate\")"
     ]
   },
   "outputStyle": "default"

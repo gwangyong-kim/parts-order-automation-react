@@ -2,6 +2,7 @@
  * MRP Service
  *
  * 자재 소요량 계획(Material Requirements Planning) 비즈니스 로직
+ * 수정: 파츠 + 수주(프로젝트)별로 MRP 결과 분리 생성
  */
 
 import prisma from "@/lib/prisma";
@@ -76,6 +77,7 @@ export function calculateOrderDate(deliveryDate: Date, leadTimeDays: number): Da
 
 /**
  * MRP 계산 실행
+ * 파츠 + 수주(프로젝트)별로 분리하여 결과 생성
  */
 export async function calculateMrp(
   input: MrpCalculationInput = {}
@@ -89,6 +91,9 @@ export async function calculateMrp(
       where: partIds ? { partId: { in: partIds } } : undefined,
     });
   }
+
+  // 활성 수주 상태 (PENDING, CONFIRMED, IN_PRODUCTION)
+  const activeSalesOrderStatuses = ["PENDING", "CONFIRMED", "IN_PRODUCTION"];
 
   // 활성 파츠 조회 (재고, BOM, 발주 정보 포함)
   const parts = await prisma.part.findMany({
@@ -109,7 +114,7 @@ export async function calculateMrp(
                 },
                 where: {
                   salesOrder: {
-                    status: { in: ["RECEIVED", "IN_PROGRESS"] },
+                    status: { in: activeSalesOrderStatuses },
                     ...(salesOrderIds && { id: { in: salesOrderIds } }),
                   },
                 },
@@ -121,7 +126,7 @@ export async function calculateMrp(
       orderItems: {
         where: {
           order: {
-            status: { in: ["APPROVED", "ORDERED"] },
+            status: { in: ["DRAFT", "APPROVED", "ORDERED"] },
           },
         },
       },
@@ -130,67 +135,100 @@ export async function calculateMrp(
 
   const results: MrpCalculationResult[] = [];
 
-  for (const part of parts) {
-    // 수주로부터 총 소요량 계산
-    let totalRequirement = 0;
-    let earliestDueDate: Date | null = null;
-    let relatedSalesOrderId: number | null = null;
+  // 파츠 + 수주별 소요량 맵: Map<"partId-salesOrderId", { requirement, dueDate, salesOrderId }>
+  const requirementMap = new Map<string, {
+    partId: number;
+    salesOrderId: number;
+    requirement: number;
+    dueDate: Date | null;
+  }>();
 
+  // 1단계: 파츠 + 수주별 소요량 집계
+  for (const part of parts) {
     for (const bomItem of part.bomItems) {
       for (const salesOrderItem of bomItem.product.salesOrderItems) {
+        const key = `${part.id}-${salesOrderItem.salesOrderId}`;
+
         // 소요량 = 주문수량 × 단위당 소요량 × (1 + 손실률)
         const requirement =
           salesOrderItem.orderQty * bomItem.quantityPerUnit * (1 + bomItem.lossRate);
-        totalRequirement += requirement;
 
-        // 가장 빠른 납기일 추적
         const dueDate = salesOrderItem.salesOrder.dueDate
           ? new Date(salesOrderItem.salesOrder.dueDate)
           : null;
 
-        if (dueDate && (!earliestDueDate || dueDate < earliestDueDate)) {
-          earliestDueDate = dueDate;
-          relatedSalesOrderId = salesOrderItem.salesOrderId;
+        if (requirementMap.has(key)) {
+          const existing = requirementMap.get(key)!;
+          existing.requirement += requirement;
+          // 더 빠른 납기일로 업데이트
+          if (dueDate && (!existing.dueDate || dueDate < existing.dueDate)) {
+            existing.dueDate = dueDate;
+          }
+        } else {
+          requirementMap.set(key, {
+            partId: part.id,
+            salesOrderId: salesOrderItem.salesOrderId,
+            requirement,
+            dueDate,
+          });
         }
       }
     }
+  }
 
-    // 재고 정보
-    const currentStock = part.inventory?.currentQty ?? 0;
-    const reservedQty = part.inventory?.reservedQty ?? 0;
-    const incomingQty = part.orderItems.reduce((sum, item) => sum + item.orderQty - item.receivedQty, 0);
+  // 2단계: 파츠별 재고 정보 맵 생성
+  const partInfoMap = new Map(parts.map((part) => [
+    part.id,
+    {
+      part,
+      currentStock: part.inventory?.currentQty ?? 0,
+      reservedQty: part.inventory?.reservedQty ?? 0,
+      incomingQty: part.orderItems.reduce((sum, item) => sum + item.orderQty - item.receivedQty, 0),
+      safetyStock: part.safetyStock,
+      minOrderQty: part.minOrderQty,
+      leadTimeDays: part.leadTimeDays,
+    },
+  ]));
+
+  // 3단계: 파츠 + 수주별 MRP 결과 생성
+  for (const [, reqData] of requirementMap) {
+    const partInfo = partInfoMap.get(reqData.partId);
+    if (!partInfo) continue;
+
+    const { currentStock, reservedQty, incomingQty, safetyStock, minOrderQty, leadTimeDays } = partInfo;
+    const totalRequirement = reqData.requirement;
 
     // 순소요량 계산
     // 가용재고 = 현재고 + 입고예정 - 예약수량 - 안전재고
-    const availableStock = currentStock + incomingQty - reservedQty - part.safetyStock;
+    const availableStock = currentStock + incomingQty - reservedQty - safetyStock;
     const netRequirement = Math.max(0, totalRequirement - Math.max(0, availableStock));
 
     // 권장 발주량 계산 (최소발주량 고려)
     const recommendedOrderQty = netRequirement > 0
-      ? Math.max(Math.ceil(netRequirement), part.minOrderQty)
+      ? Math.max(Math.ceil(netRequirement), minOrderQty)
       : 0;
 
     // 권장 발주일 계산
     let recommendedOrderDate: Date | null = null;
-    if (earliestDueDate && recommendedOrderQty > 0) {
-      recommendedOrderDate = calculateOrderDate(earliestDueDate, part.leadTimeDays);
+    if (reqData.dueDate && recommendedOrderQty > 0) {
+      recommendedOrderDate = calculateOrderDate(reqData.dueDate, leadTimeDays);
     }
 
     // 긴급도 결정
-    const daysUntil = earliestDueDate
-      ? getDaysBetween(now, earliestDueDate)
+    const daysUntil = reqData.dueDate
+      ? getDaysBetween(now, reqData.dueDate)
       : 999;
     const urgency = getUrgencyLevel(daysUntil);
 
     // 결과 저장
     const result: MrpCalculationResult = {
-      partId: part.id,
-      salesOrderId: relatedSalesOrderId,
+      partId: reqData.partId,
+      salesOrderId: reqData.salesOrderId,
       totalRequirement: Math.round(totalRequirement),
       currentStock,
       reservedQty,
       incomingQty,
-      safetyStock: part.safetyStock,
+      safetyStock,
       netRequirement: Math.round(netRequirement),
       recommendedOrderQty: Math.round(recommendedOrderQty),
       recommendedOrderDate,

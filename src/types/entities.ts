@@ -184,6 +184,7 @@ export interface OrderItem {
   id: number;
   orderId: number;
   partId: number;
+  salesOrderId: number | null;
   orderQty: number;
   receivedQty: number;
   unitPrice: number | null;
@@ -193,6 +194,7 @@ export interface OrderItem {
   notes: string | null;
   order?: Order;
   part?: Part;
+  salesOrder?: SalesOrder;
 }
 
 export interface Inventory {

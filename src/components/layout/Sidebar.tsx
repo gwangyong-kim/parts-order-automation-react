@@ -37,7 +37,7 @@ const navigationGroups: NavGroup[] = [
     title: "",
     items: [
       { label: "대시보드", href: "/", icon: LayoutDashboard },
-      { label: "마스터 데이터", href: "/master-data", icon: Database },
+      { label: "기준정보", href: "/master-data", icon: Database },
     ],
   },
   {

@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   ArrowLeftRight,
   Search,
@@ -16,6 +25,9 @@ import {
   ChevronDown,
   Edit2,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import TransactionForm from "@/components/forms/TransactionForm";
 import ExcelUpload from "@/components/ui/ExcelUpload";
@@ -126,6 +138,8 @@ const typeIcons: Record<string, React.ElementType> = {
   TRANSFER: ArrowLeftRight,
 };
 
+const columnHelper = createColumnHelper<Transaction>();
+
 export default function TransactionsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -140,6 +154,8 @@ export default function TransactionsPage() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: transactions, isLoading, error } = useQuery({
     queryKey: ["transactions"],
@@ -300,29 +316,237 @@ export default function TransactionsPage() {
     }
   };
 
-  const filteredTransactions = transactions?.filter((tx) => {
-    const partCode = tx.part.partCode || tx.part.partNumber || "";
-    const matchesSearch =
-      tx.transactionCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter ? tx.transactionType === typeFilter : true;
+  const filteredTransactions = useMemo(() => {
+    if (!transactions) return [];
 
-    // 기간 필터
-    const txDate = new Date(tx.createdAt);
-    const now = new Date();
-    let matchesDate = true;
-    if (dateFilter === "today") {
-      matchesDate = txDate.toDateString() === now.toDateString();
-    } else if (dateFilter === "week") {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      matchesDate = txDate >= weekAgo;
-    } else if (dateFilter === "month") {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      matchesDate = txDate >= monthAgo;
-    }
+    return transactions.filter((tx) => {
+      const partCode = tx.part.partCode || tx.part.partNumber || "";
+      const matchesSearch =
+        tx.transactionCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        partCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = typeFilter ? tx.transactionType === typeFilter : true;
 
-    return matchesSearch && matchesType && matchesDate;
+      // 기간 필터
+      const txDate = new Date(tx.createdAt);
+      const now = new Date();
+      let matchesDate = true;
+      if (dateFilter === "today") {
+        matchesDate = txDate.toDateString() === now.toDateString();
+      } else if (dateFilter === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        matchesDate = txDate >= weekAgo;
+      } else if (dateFilter === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        matchesDate = txDate >= monthAgo;
+      }
+
+      return matchesSearch && matchesType && matchesDate;
+    });
+  }, [transactions, searchTerm, typeFilter, dateFilter]);
+
+  // TanStack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 거래코드
+      columnHelper.accessor("transactionCode", {
+        header: "거래코드",
+        size: 130,
+        minSize: 100,
+        maxSize: 180,
+        cell: ({ row }) => (
+          <Link
+            href={`/transactions/${row.original.id}`}
+            className="font-medium font-mono text-xs text-[var(--primary)] hover:underline truncate block"
+            onClick={(e) => e.stopPropagation()}
+            title={row.original.transactionCode}
+          >
+            {row.original.transactionCode}
+          </Link>
+        ),
+      }),
+      // 유형
+      columnHelper.accessor("transactionType", {
+        header: "유형",
+        size: 80,
+        minSize: 70,
+        maxSize: 100,
+        cell: ({ row }) => {
+          const Icon = typeIcons[row.original.transactionType] || ArrowLeftRight;
+          return (
+            <span
+              className={`badge ${typeColors[row.original.transactionType] || "badge-secondary"} inline-flex items-center gap-1`}
+            >
+              <Icon className="w-3 h-3" />
+              {typeLabels[row.original.transactionType] || row.original.transactionType}
+            </span>
+          );
+        },
+      }),
+      // 파츠
+      columnHelper.accessor((row) => row.part.partCode || row.part.partNumber || "", {
+        id: "part",
+        header: "파츠",
+        size: 200,
+        minSize: 150,
+        maxSize: 300,
+        cell: ({ row }) => {
+          const partCode = row.original.part.partCode || row.original.part.partNumber || "";
+          return (
+            <div className="min-w-0">
+              <Link
+                href={`/parts/${row.original.part.id}`}
+                className="font-medium text-[var(--primary)] hover:underline truncate block"
+                onClick={(e) => e.stopPropagation()}
+                title={partCode}
+              >
+                {partCode}
+              </Link>
+              <p className="text-sm text-[var(--text-muted)] truncate" title={row.original.part.partName}>
+                {row.original.part.partName}
+              </p>
+            </div>
+          );
+        },
+      }),
+      // 수량
+      columnHelper.accessor("quantity", {
+        header: "수량",
+        size: 90,
+        minSize: 70,
+        maxSize: 120,
+        cell: ({ row }) => (
+          <span
+            className={`tabular-nums text-right block font-bold ${
+              row.original.transactionType === "INBOUND"
+                ? "text-[var(--success)]"
+                : row.original.transactionType === "OUTBOUND"
+                ? "text-[var(--danger)]"
+                : "text-[var(--text-primary)]"
+            }`}
+          >
+            {row.original.transactionType === "INBOUND" ? "+" : row.original.transactionType === "OUTBOUND" ? "-" : ""}
+            {row.original.quantity.toLocaleString()}
+          </span>
+        ),
+      }),
+      // 이전재고
+      columnHelper.accessor("beforeQty", {
+        header: "이전",
+        size: 80,
+        minSize: 60,
+        maxSize: 100,
+        cell: (info) => (
+          <span className="tabular-nums text-right block text-[var(--text-secondary)]">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 이후재고
+      columnHelper.accessor("afterQty", {
+        header: "이후",
+        size: 80,
+        minSize: 60,
+        maxSize: 100,
+        cell: (info) => (
+          <span className="tabular-nums text-right block font-medium">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 참조
+      columnHelper.accessor("referenceType", {
+        header: "참조",
+        size: 70,
+        minSize: 50,
+        maxSize: 100,
+        cell: (info) => (
+          <span className="text-center block text-[var(--text-secondary)]">
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      // 처리자
+      columnHelper.accessor((row) => row.createdBy?.name || "-", {
+        id: "createdBy",
+        header: "처리자",
+        size: 80,
+        minSize: 60,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-center block">{info.getValue()}</span>
+        ),
+      }),
+      // 비고
+      columnHelper.accessor("notes", {
+        header: "비고",
+        size: 150,
+        minSize: 100,
+        maxSize: 250,
+        cell: (info) => (
+          <span className="text-sm text-[var(--text-secondary)] truncate block" title={info.getValue() || ""}>
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      // 일시
+      columnHelper.accessor("createdAt", {
+        header: "일시",
+        size: 160,
+        minSize: 130,
+        maxSize: 200,
+        cell: (info) => (
+          <span className="text-right block text-[var(--text-secondary)] text-sm whitespace-nowrap">
+            {new Date(info.getValue()).toLocaleString("ko-KR")}
+          </span>
+        ),
+      }),
+      // 작업
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 80,
+        minSize: 70,
+        maxSize: 100,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-1">
+            {can("inventory", "edit") && (
+              <button
+                onClick={(e) => handleEdit(row.original, e)}
+                className="table-action-btn edit"
+                title="수정"
+                aria-label={`${row.original.transactionCode} 수정`}
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
+            {can("inventory", "delete") && (
+              <button
+                onClick={(e) => handleDelete(row.original, e)}
+                className="table-action-btn delete"
+                title="삭제"
+                aria-label={`${row.original.transactionCode} 삭제`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        ),
+      }),
+    ],
+    [can]
+  );
+
+  const table = useReactTable({
+    data: filteredTransactions,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   if (isLoading) {
@@ -493,29 +717,59 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table - TanStack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">거래코드</th>
-                <th className="table-header text-center table-col-status">유형</th>
-                <th className="table-header table-col-name-lg">파츠</th>
-                <th className="table-header text-right table-col-qty">수량</th>
-                <th className="table-header text-right table-col-qty">이전</th>
-                <th className="table-header text-right table-col-qty">이후</th>
-                <th className="table-header text-center table-col-short">참조</th>
-                <th className="table-header text-center table-col-short">처리자</th>
-                <th className="table-header table-col-desc">비고</th>
-                <th className="table-header text-right table-col-datetime">일시</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredTransactions?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <ArrowLeftRight className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm || typeFilter ? "검색 결과가 없습니다." : "입출고 내역이 없습니다."}
@@ -531,107 +785,33 @@ export default function TransactionsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredTransactions?.map((tx) => {
-                  const Icon = typeIcons[tx.transactionType] || ArrowLeftRight;
-                  const partCode = tx.part.partCode || tx.part.partNumber || "";
-                  return (
-                    <tr
-                      key={tx.id}
-                      className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors cursor-pointer"
-                      onClick={() => window.location.href = `/transactions/${tx.id}`}
-                    >
-                      <td className="table-cell table-col-code">
-                        <Link
-                          href={`/transactions/${tx.id}`}
-                          className="font-medium font-mono text-xs text-[var(--primary)] hover:underline table-truncate block"
-                          onClick={(e) => e.stopPropagation()}
-                          title={tx.transactionCode}
-                        >
-                          {tx.transactionCode}
-                        </Link>
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors cursor-pointer"
+                    onClick={() => window.location.href = `/transactions/${row.original.id}`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
-                      <td className="table-cell text-center table-col-status">
-                        <span
-                          className={`badge ${typeColors[tx.transactionType] || "badge-secondary"} inline-flex items-center gap-1`}
-                        >
-                          <Icon className="w-3 h-3" />
-                          {typeLabels[tx.transactionType] || tx.transactionType}
-                        </span>
-                      </td>
-                      <td className="table-cell table-col-name-lg">
-                        <div className="min-w-0">
-                          <Link
-                            href={`/parts/${tx.part.id}`}
-                            className="font-medium text-[var(--primary)] hover:underline table-truncate block"
-                            onClick={(e) => e.stopPropagation()}
-                            title={partCode}
-                          >
-                            {partCode}
-                          </Link>
-                          <p className="text-sm text-[var(--text-muted)] table-truncate" title={tx.part.partName}>{tx.part.partName}</p>
-                        </div>
-                      </td>
-                      <td className="table-cell text-right tabular-nums table-col-qty">
-                        <span
-                          className={`font-bold ${
-                            tx.transactionType === "INBOUND"
-                              ? "text-[var(--success)]"
-                              : tx.transactionType === "OUTBOUND"
-                              ? "text-[var(--danger)]"
-                              : "text-[var(--text-primary)]"
-                          }`}
-                        >
-                          {tx.transactionType === "INBOUND" ? "+" : tx.transactionType === "OUTBOUND" ? "-" : ""}
-                          {tx.quantity.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
-                        {tx.beforeQty.toLocaleString()}
-                      </td>
-                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
-                        {tx.afterQty.toLocaleString()}
-                      </td>
-                      <td className="table-cell text-center text-[var(--text-secondary)] table-col-short">
-                        {tx.referenceType || "-"}
-                      </td>
-                      <td className="table-cell text-center table-col-short">{tx.createdBy?.name || "-"}</td>
-                      <td className="table-cell text-sm text-[var(--text-secondary)] table-col-desc">
-                        <span className="table-truncate block" title={tx.notes || ""}>{tx.notes || "-"}</span>
-                      </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] text-sm whitespace-nowrap table-col-datetime">
-                        {new Date(tx.createdAt).toLocaleString("ko-KR")}
-                      </td>
-                      <td className="table-cell text-center table-col-action">
-                        <div className="flex items-center justify-center gap-1">
-                          {can("inventory", "edit") && (
-                            <button
-                              onClick={(e) => handleEdit(tx, e)}
-                              className="table-action-btn edit"
-                              title="수정"
-                              aria-label={`${tx.transactionCode} 수정`}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          )}
-                          {can("inventory", "delete") && (
-                            <button
-                              onClick={(e) => handleDelete(tx, e)}
-                              className="table-action-btn delete"
-                              title="삭제"
-                              aria-label={`${tx.transactionCode} 삭제`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                    ))}
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredTransactions.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       {/* Transaction Form Modal */}

@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   Users,
   Plus,
@@ -17,6 +26,9 @@ import {
   XCircle,
   ChevronDown,
   KeyRound,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import UserForm from "@/components/forms/UserForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -102,6 +114,8 @@ const roleLabels: Record<string, string> = {
 
 type TabType = "users" | "permissions";
 
+const columnHelper = createColumnHelper<User>();
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -115,6 +129,8 @@ export default function UsersPage() {
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: users, isLoading, error } = useQuery({
     queryKey: ["users"],
@@ -246,17 +262,177 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users?.filter((user) => {
-    const matchesSearch =
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === "all" || user.role === filterRole;
-    const matchesStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && user.isActive) ||
-      (filterStatus === "inactive" && !user.isActive);
-    return matchesSearch && matchesRole && matchesStatus;
+  const filteredUsers = useMemo(() => {
+    return users?.filter((user) => {
+      const matchesSearch =
+        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = filterRole === "all" || user.role === filterRole;
+      const matchesStatus =
+        filterStatus === "all" ||
+        (filterStatus === "active" && user.isActive) ||
+        (filterStatus === "inactive" && !user.isActive);
+      return matchesSearch && matchesRole && matchesStatus;
+    }) || [];
+  }, [users, searchTerm, filterRole, filterStatus]);
+
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 사용자 컬럼
+      columnHelper.accessor("name", {
+        header: "사용자",
+        size: 220,
+        minSize: 180,
+        maxSize: 300,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-[var(--primary)]/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="font-semibold text-[var(--primary)]">
+                {row.original.name.charAt(0)}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-[var(--text-primary)] truncate" title={row.original.name}>
+                {row.original.name}
+              </p>
+              {row.original.email && (
+                <p className="text-sm text-[var(--text-muted)] flex items-center gap-1">
+                  <Mail className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate" title={row.original.email}>{row.original.email}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        ),
+      }),
+      // 아이디 컬럼
+      columnHelper.accessor("username", {
+        header: "아이디",
+        size: 120,
+        minSize: 100,
+        maxSize: 160,
+        cell: (info) => (
+          <span className="font-mono truncate block" title={info.getValue()}>
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      // 역할 컬럼
+      columnHelper.accessor("role", {
+        header: "역할",
+        size: 100,
+        minSize: 80,
+        maxSize: 130,
+        cell: (info) => (
+          <span className={`badge ${roleColors[info.getValue()]} flex items-center gap-1 w-fit`}>
+            <Shield className="w-3 h-3" />
+            {roleLabels[info.getValue()]}
+          </span>
+        ),
+      }),
+      // 부서 컬럼
+      columnHelper.accessor("department", {
+        header: "부서",
+        size: 100,
+        minSize: 80,
+        maxSize: 140,
+        cell: (info) => info.getValue() || "-",
+      }),
+      // 상태 컬럼
+      columnHelper.accessor("isActive", {
+        header: "상태",
+        size: 90,
+        minSize: 80,
+        maxSize: 110,
+        cell: (info) =>
+          info.getValue() ? (
+            <span className="badge badge-success flex items-center gap-1 w-fit">
+              <CheckCircle className="w-3 h-3" />
+              활성
+            </span>
+          ) : (
+            <span className="badge badge-secondary flex items-center gap-1 w-fit">
+              <XCircle className="w-3 h-3" />
+              비활성
+            </span>
+          ),
+      }),
+      // 마지막 로그인 컬럼
+      columnHelper.accessor("lastLogin", {
+        header: "마지막 로그인",
+        size: 160,
+        minSize: 140,
+        maxSize: 200,
+        cell: (info) =>
+          info.getValue() ? (
+            <span className="flex items-center gap-1 text-[var(--text-secondary)]">
+              <Calendar className="w-3 h-3" />
+              {new Date(info.getValue()!).toLocaleString("ko-KR")}
+            </span>
+          ) : (
+            "-"
+          ),
+      }),
+      // 등록일 컬럼
+      columnHelper.accessor("createdAt", {
+        header: "등록일",
+        size: 110,
+        minSize: 100,
+        maxSize: 140,
+        cell: (info) => (
+          <span className="text-[var(--text-secondary)]">
+            {new Date(info.getValue()).toLocaleDateString("ko-KR")}
+          </span>
+        ),
+      }),
+      // 작업 컬럼
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 80,
+        minSize: 70,
+        maxSize: 100,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-1">
+            {can("users", "edit") && (
+              <button
+                onClick={() => handleEdit(row.original)}
+                className="table-action-btn edit"
+                title="수정"
+                aria-label={`${row.original.name} 수정`}
+              >
+                <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+            {can("users", "delete") && (
+              <button
+                onClick={() => handleDelete(row.original)}
+                className="table-action-btn delete"
+                title="비활성화"
+                aria-label={`${row.original.name} 비활성화`}
+              >
+                <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+          </div>
+        ),
+      }),
+    ],
+    [can]
+  );
+
+  const table = useReactTable({
+    data: filteredUsers,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   // 사용자 관리 권한 체크
@@ -478,31 +654,64 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Users Table */}
+      {/* Users Table - Tanstack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-name-lg">사용자</th>
-                <th className="table-header table-col-code">아이디</th>
-                <th className="table-header table-col-status">역할</th>
-                <th className="table-header table-col-short">부서</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header table-col-datetime">마지막 로그인</th>
-                <th className="table-header table-col-date">등록일</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredUsers?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <Users className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "사용자가 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("users", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
@@ -513,95 +722,32 @@ export default function UsersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers?.map((user) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={user.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell table-col-name-lg">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 bg-[var(--primary)]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="font-semibold text-[var(--primary)]">
-                            {user.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-[var(--text-primary)] table-truncate" title={user.name}>{user.name}</p>
-                          {user.email && (
-                            <p className="text-sm text-[var(--text-muted)] flex items-center gap-1">
-                              <Mail className="w-3 h-3 flex-shrink-0" />
-                              <span className="table-truncate" title={user.email}>{user.email}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="table-cell font-mono table-col-code">
-                      <span className="table-truncate block" title={user.username}>{user.username}</span>
-                    </td>
-                    <td className="table-cell table-col-status">
-                      <span className={`badge ${roleColors[user.role]} flex items-center gap-1 w-fit`}>
-                        <Shield className="w-3 h-3" />
-                        {roleLabels[user.role]}
-                      </span>
-                    </td>
-                    <td className="table-cell table-col-short">{user.department || "-"}</td>
-                    <td className="table-cell table-col-status">
-                      {user.isActive ? (
-                        <span className="badge badge-success flex items-center gap-1 w-fit">
-                          <CheckCircle className="w-3 h-3" />
-                          활성
-                        </span>
-                      ) : (
-                        <span className="badge badge-secondary flex items-center gap-1 w-fit">
-                          <XCircle className="w-3 h-3" />
-                          비활성
-                        </span>
-                      )}
-                    </td>
-                    <td className="table-cell text-[var(--text-secondary)] table-col-datetime">
-                      {user.lastLogin ? (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(user.lastLogin).toLocaleString("ko-KR")}
-                        </span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="table-cell text-[var(--text-secondary)] table-col-date">
-                      {new Date(user.createdAt).toLocaleDateString("ko-KR")}
-                    </td>
-                    <td className="table-cell text-center table-col-action">
-                      <div className="flex items-center justify-center gap-1">
-                        {can("users", "edit") && (
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="table-action-btn edit"
-                            title="수정"
-                            aria-label={`${user.name} 수정`}
-                          >
-                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                        {can("users", "delete") && (
-                          <button
-                            onClick={() => handleDelete(user)}
-                            className="table-action-btn delete"
-                            title="비활성화"
-                            aria-label={`${user.name} 비활성화`}
-                          >
-                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredUsers.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
         {/* User Form Modal */}

@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   ClipboardList,
   Plus,
@@ -17,6 +26,9 @@ import {
   Clock,
   Factory,
   CheckCircle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import SalesOrderForm from "@/components/forms/SalesOrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -155,6 +167,8 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "취소",
 };
 
+const columnHelper = createColumnHelper<SalesOrder>();
+
 export default function SalesOrdersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -168,6 +182,8 @@ export default function SalesOrdersPage() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ["sales-orders"],
@@ -321,15 +337,180 @@ export default function SalesOrdersPage() {
     }
   };
 
-  const filteredOrders = orders?.filter((order) => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchLower) ||
-      order.division.toLowerCase().includes(searchLower) ||
-      order.manager.toLowerCase().includes(searchLower) ||
-      order.project.toLowerCase().includes(searchLower);
-    const matchesStatus = filterStatus === "all" || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter((order) => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        order.orderNumber.toLowerCase().includes(searchLower) ||
+        order.division.toLowerCase().includes(searchLower) ||
+        order.manager.toLowerCase().includes(searchLower) ||
+        order.project.toLowerCase().includes(searchLower);
+      const matchesStatus = filterStatus === "all" || order.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, searchTerm, filterStatus]);
+
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 수주번호
+      columnHelper.accessor("orderNumber", {
+        header: "수주번호",
+        size: 140,
+        minSize: 100,
+        maxSize: 200,
+        cell: ({ row }) => (
+          <Link
+            href={`/sales-orders/${row.original.id}`}
+            className="text-[var(--primary)] hover:underline truncate block font-medium"
+            title={row.original.orderNumber}
+          >
+            {row.original.orderNumber}
+          </Link>
+        ),
+      }),
+      // 사업부
+      columnHelper.accessor("division", {
+        header: "사업부",
+        size: 100,
+        minSize: 80,
+        maxSize: 150,
+        cell: (info) => info.getValue() || "-",
+      }),
+      // 담당자
+      columnHelper.accessor("manager", {
+        header: "담당자",
+        size: 100,
+        minSize: 80,
+        maxSize: 150,
+        cell: (info) => info.getValue() || "-",
+      }),
+      // 프로젝트
+      columnHelper.accessor("project", {
+        header: "프로젝트",
+        size: 150,
+        minSize: 100,
+        maxSize: 250,
+        cell: (info) => (
+          <span className="truncate block" title={info.getValue() || ""}>
+            {info.getValue() || "-"}
+          </span>
+        ),
+      }),
+      // 제품
+      columnHelper.display({
+        id: "items",
+        header: "제품",
+        size: 200,
+        minSize: 150,
+        maxSize: 300,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const items = row.original.items;
+          if (items.length === 0) {
+            return <span className="text-[var(--text-muted)]">-</span>;
+          }
+          return (
+            <div className="text-sm">
+              {items.slice(0, 2).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-1">
+                  <span className="font-medium truncate" title={item.productCode || item.productName || `제품${item.productId}`}>
+                    {item.productCode || item.productName || `제품${item.productId}`}
+                  </span>
+                  <span className="text-[var(--text-muted)] flex-shrink-0">x{item.orderQty}</span>
+                </div>
+              ))}
+              {items.length > 2 && (
+                <span className="text-xs text-[var(--text-muted)]">외 {items.length - 2}개</span>
+              )}
+            </div>
+          );
+        },
+      }),
+      // 수주일
+      columnHelper.accessor("orderDate", {
+        header: "수주일",
+        size: 120,
+        minSize: 100,
+        maxSize: 150,
+        cell: (info) => (
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <Calendar className="w-3 h-3" />
+            {new Date(info.getValue()).toLocaleDateString("ko-KR")}
+          </span>
+        ),
+      }),
+      // 납기일
+      columnHelper.accessor("deliveryDate", {
+        header: "납기일",
+        size: 110,
+        minSize: 90,
+        maxSize: 140,
+        cell: (info) => (
+          <span className="whitespace-nowrap">
+            {info.getValue() ? new Date(info.getValue()).toLocaleDateString("ko-KR") : "-"}
+          </span>
+        ),
+      }),
+      // 상태
+      columnHelper.accessor("status", {
+        header: "상태",
+        size: 90,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className={`badge ${statusColors[info.getValue()] || "badge-secondary"}`}>
+            {statusLabels[info.getValue()] || info.getValue()}
+          </span>
+        ),
+      }),
+      // 작업
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 90,
+        minSize: 80,
+        maxSize: 100,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-1">
+            {can("sales-orders", "edit") && (
+              <button
+                onClick={() => handleEdit(row.original)}
+                className="table-action-btn edit"
+                title="수정"
+                aria-label={`${row.original.orderNumber} 수정`}
+              >
+                <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+            {can("sales-orders", "delete") && (
+              <button
+                onClick={() => handleDelete(row.original)}
+                className="table-action-btn delete"
+                title="삭제"
+                aria-label={`${row.original.orderNumber} 삭제`}
+              >
+                <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+          </div>
+        ),
+      }),
+    ],
+    [can]
+  );
+
+  const table = useReactTable({
+    data: filteredOrders,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   if (isLoading) {
@@ -495,27 +676,59 @@ export default function SalesOrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Orders Table - Tanstack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">수주번호</th>
-                <th className="table-header table-col-short">사업부</th>
-                <th className="table-header table-col-short">담당자</th>
-                <th className="table-header table-col-name">프로젝트</th>
-                <th className="table-header table-col-name-lg">제품</th>
-                <th className="table-header table-col-date">수주일</th>
-                <th className="table-header table-col-date">납기일</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredOrders?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <ClipboardList className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 수주가 없습니다."}
@@ -531,86 +744,32 @@ export default function SalesOrdersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders?.map((order) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={order.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium table-col-code">
-                      <Link
-                        href={`/sales-orders/${order.id}`}
-                        className="text-[var(--primary)] hover:underline table-truncate block"
-                        title={order.orderNumber}
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
                       >
-                        {order.orderNumber}
-                      </Link>
-                    </td>
-                    <td className="table-cell table-col-short">{order.division || "-"}</td>
-                    <td className="table-cell table-col-short">{order.manager || "-"}</td>
-                    <td className="table-cell table-col-name">
-                      <span className="table-truncate block" title={order.project || ""}>{order.project || "-"}</span>
-                    </td>
-                    <td className="table-cell table-col-name-lg">
-                      {order.items.length > 0 ? (
-                        <div className="text-sm">
-                          {order.items.slice(0, 2).map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <span className="font-medium table-truncate" title={item.productCode || item.productName || `제품${item.productId}`}>{item.productCode || item.productName || `제품${item.productId}`}</span>
-                              <span className="text-[var(--text-muted)] flex-shrink-0">x{item.orderQty}</span>
-                            </div>
-                          ))}
-                          {order.items.length > 2 && (
-                            <span className="text-xs text-[var(--text-muted)]">외 {order.items.length - 2}개</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[var(--text-muted)]">-</span>
-                      )}
-                    </td>
-                    <td className="table-cell table-col-date">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(order.orderDate).toLocaleDateString("ko-KR")}
-                      </span>
-                    </td>
-                    <td className="table-cell table-col-date">
-                      {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString("ko-KR") : "-"}
-                    </td>
-                    <td className="table-cell table-col-status">
-                      <span className={`badge ${statusColors[order.status] || "badge-secondary"}`}>
-                        {statusLabels[order.status] || order.status}
-                      </span>
-                    </td>
-                    <td className="table-cell text-center table-col-action">
-                      <div className="flex items-center justify-center gap-1">
-                        {can("sales-orders", "edit") && (
-                          <button
-                            onClick={() => handleEdit(order)}
-                            className="table-action-btn edit"
-                            title="수정"
-                            aria-label={`${order.orderNumber} 수정`}
-                          >
-                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                        {can("sales-orders", "delete") && (
-                          <button
-                            onClick={() => handleDelete(order)}
-                            className="table-action-btn delete"
-                            title="삭제"
-                            aria-label={`${order.orderNumber} 삭제`}
-                          >
-                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredOrders.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       {/* Sales Order Form Modal */}

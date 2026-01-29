@@ -15,7 +15,7 @@ const RESOURCE_LABELS: Record<Resource, string> = {
   "orders": "발주 관리",
   "inventory": "재고 관리",
   "mrp": "MRP",
-  "master-data": "마스터 데이터",
+  "master-data": "기준정보",
   "warehouse": "창고 관리",
   "reports": "보고서",
   "settings": "설정",

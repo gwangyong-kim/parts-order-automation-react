@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   Warehouse,
   Search,
@@ -13,6 +22,9 @@ import {
   Package,
   Filter,
   ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -39,6 +51,8 @@ async function fetchInventory(): Promise<InventoryItem[]> {
   return result.data;
 }
 
+const columnHelper = createColumnHelper<InventoryItem>();
+
 export default function InventoryPage() {
   const toast = useToast();
   const { can } = usePermission();
@@ -46,6 +60,8 @@ export default function InventoryPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: inventory, isLoading, error } = useQuery({
     queryKey: ["inventory"],
@@ -68,6 +84,21 @@ export default function InventoryPage() {
   };
 
   const hasActiveFilters = filterStatus !== "all";
+
+  const filteredInventory = useMemo(() => {
+    if (!inventory) return [];
+    return inventory.filter((item) => {
+      const matchesSearch =
+        item.part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
+      const isLowStock = item.currentQty <= item.part.safetyStock;
+      const matchesStatus =
+        filterStatus === "all" ? true :
+        filterStatus === "low" ? isLowStock :
+        filterStatus === "normal" ? !isLowStock : true;
+      return matchesSearch && matchesStatus;
+    });
+  }, [inventory, searchTerm, filterStatus]);
 
   const handleExport = () => {
     if (!filteredInventory || filteredInventory.length === 0) {
@@ -104,18 +135,6 @@ export default function InventoryPage() {
     toast.success("파일이 다운로드되었습니다.");
   };
 
-  const filteredInventory = inventory?.filter((item) => {
-    const matchesSearch =
-      item.part.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.part.partName.toLowerCase().includes(searchTerm.toLowerCase());
-    const isLowStock = item.currentQty <= item.part.safetyStock;
-    const matchesStatus =
-      filterStatus === "all" ? true :
-      filterStatus === "low" ? isLowStock :
-      filterStatus === "normal" ? !isLowStock : true;
-    return matchesSearch && matchesStatus;
-  });
-
   const lowStockCount = inventory?.filter(
     (item) => item.currentQty <= item.part.safetyStock
   ).length;
@@ -124,6 +143,142 @@ export default function InventoryPage() {
     (sum, item) => sum + item.currentQty,
     0
   );
+
+  // TanStack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 파츠품번
+      columnHelper.accessor("part.partNumber", {
+        header: "파츠품번",
+        size: 140,
+        minSize: 100,
+        maxSize: 200,
+        cell: ({ row }) => (
+          <Link
+            href="/parts"
+            className="text-[var(--primary)] hover:underline truncate block font-medium"
+            title={row.original.part.partNumber}
+          >
+            {row.original.part.partNumber}
+          </Link>
+        ),
+      }),
+      // 파츠명
+      columnHelper.accessor("part.partName", {
+        header: "파츠명",
+        size: 200,
+        minSize: 150,
+        maxSize: 350,
+        cell: ({ row }) => (
+          <span className="truncate block" title={row.original.part.partName}>
+            {row.original.part.partName}
+          </span>
+        ),
+      }),
+      // 단위
+      columnHelper.accessor("part.unit", {
+        header: "단위",
+        size: 70,
+        minSize: 50,
+        maxSize: 100,
+        cell: (info) => info.getValue(),
+      }),
+      // 현재고
+      columnHelper.accessor("currentQty", {
+        header: "현재고",
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-right block font-medium tabular-nums">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 예약
+      columnHelper.accessor("reservedQty", {
+        header: "예약",
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-right block text-[var(--text-secondary)] tabular-nums">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 가용재고
+      columnHelper.accessor("availableQty", {
+        header: "가용재고",
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-right block font-medium tabular-nums">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 안전재고
+      columnHelper.accessor("part.safetyStock", {
+        header: "안전재고",
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+        cell: (info) => (
+          <span className="text-right block text-[var(--text-secondary)] tabular-nums">
+            {info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 상태
+      columnHelper.display({
+        id: "status",
+        header: "상태",
+        size: 90,
+        minSize: 80,
+        maxSize: 120,
+        cell: ({ row }) => {
+          const isLowStock = row.original.currentQty <= row.original.part.safetyStock;
+          return isLowStock ? (
+            <span className="badge badge-danger flex items-center gap-1 w-fit">
+              <TrendingDown className="w-3 h-3" />
+              부족
+            </span>
+          ) : (
+            <span className="badge badge-success flex items-center gap-1 w-fit">
+              <TrendingUp className="w-3 h-3" />
+              정상
+            </span>
+          );
+        },
+      }),
+      // 최종갱신
+      columnHelper.accessor("updatedAt", {
+        header: "최종갱신",
+        size: 110,
+        minSize: 100,
+        maxSize: 140,
+        cell: (info) => (
+          <span className="text-[var(--text-secondary)]">
+            {new Date(info.getValue()).toLocaleDateString("ko-KR")}
+          </span>
+        ),
+      }),
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: filteredInventory,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
+  });
 
   if (isLoading) {
     return (
@@ -279,82 +434,82 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Inventory Table */}
+      {/* Inventory Table - TanStack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">파츠품번</th>
-                <th className="table-header table-col-name">파츠명</th>
-                <th className="table-header table-col-short">단위</th>
-                <th className="table-header text-right table-col-qty">현재고</th>
-                <th className="table-header text-right table-col-qty">예약</th>
-                <th className="table-header text-right table-col-qty">가용재고</th>
-                <th className="table-header text-right table-col-qty">안전재고</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header table-col-date">최종갱신</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredInventory?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredInventory.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <Warehouse className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">재고 데이터가 없습니다.</p>
                   </td>
                 </tr>
               ) : (
-                filteredInventory?.map((item) => {
-                  const isLowStock = item.currentQty <= item.part.safetyStock;
+                table.getRowModel().rows.map((row) => {
+                  const isLowStock = row.original.currentQty <= row.original.part.safetyStock;
                   return (
                     <tr
-                      key={item.id}
-                      className={`border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors ${
+                      key={row.id}
+                      className={`hover:bg-[var(--glass-bg)] transition-colors ${
                         isLowStock ? "bg-[var(--danger)]/5" : ""
                       }`}
                     >
-                      <td className="table-cell font-medium table-col-code">
-                        <Link
-                          href="/parts"
-                          className="text-[var(--primary)] hover:underline table-truncate block"
-                          title={item.part.partNumber}
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                          style={{ width: cell.column.getSize() }}
                         >
-                          {item.part.partNumber}
-                        </Link>
-                      </td>
-                      <td className="table-cell table-col-name">
-                        <span className="table-truncate block" title={item.part.partName}>{item.part.partName}</span>
-                      </td>
-                      <td className="table-cell table-col-short">{item.part.unit}</td>
-                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
-                        {item.currentQty.toLocaleString()}
-                      </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
-                        {item.reservedQty.toLocaleString()}
-                      </td>
-                      <td className="table-cell text-right font-medium tabular-nums table-col-qty">
-                        {item.availableQty.toLocaleString()}
-                      </td>
-                      <td className="table-cell text-right text-[var(--text-secondary)] tabular-nums table-col-qty">
-                        {item.part.safetyStock.toLocaleString()}
-                      </td>
-                      <td className="table-cell table-col-status">
-                        {isLowStock ? (
-                          <span className="badge badge-danger flex items-center gap-1 w-fit">
-                            <TrendingDown className="w-3 h-3" />
-                            부족
-                          </span>
-                        ) : (
-                          <span className="badge badge-success flex items-center gap-1 w-fit">
-                            <TrendingUp className="w-3 h-3" />
-                            정상
-                          </span>
-                        )}
-                      </td>
-                      <td className="table-cell text-[var(--text-secondary)] table-col-date">
-                        {new Date(item.updatedAt).toLocaleDateString("ko-KR")}
-                      </td>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
                     </tr>
                   );
                 })
@@ -362,6 +517,12 @@ export default function InventoryPage() {
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredInventory.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
     </div>
   );

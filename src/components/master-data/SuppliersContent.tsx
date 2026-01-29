@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   Truck,
   Plus,
@@ -13,6 +22,9 @@ import {
   Phone,
   Mail,
   ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import SupplierForm from "@/components/forms/SupplierForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -54,6 +66,8 @@ async function deleteSupplier(id: number): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete supplier");
 }
 
+const columnHelper = createColumnHelper<Supplier>();
+
 export default function SuppliersContent() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -65,6 +79,8 @@ export default function SuppliersContent() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: suppliers, isLoading, error } = useQuery({
     queryKey: ["suppliers"],
@@ -80,6 +96,19 @@ export default function SuppliersContent() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const filteredSuppliers = useMemo(() => {
+    return suppliers?.filter((supplier) => {
+      const matchesSearch =
+        supplier.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        filterStatus === "all" ||
+        (filterStatus === "active" && supplier.isActive) ||
+        (filterStatus === "inactive" && !supplier.isActive);
+      return matchesSearch && matchesStatus;
+    }) || [];
+  }, [suppliers, searchTerm, filterStatus]);
 
   const handleExport = () => {
     if (!filteredSuppliers || filteredSuppliers.length === 0) {
@@ -189,15 +218,118 @@ export default function SuppliersContent() {
     }
   };
 
-  const filteredSuppliers = suppliers?.filter((supplier) => {
-    const matchesSearch =
-      supplier.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && supplier.isActive) ||
-      (filterStatus === "inactive" && !supplier.isActive);
-    return matchesSearch && matchesStatus;
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("code", {
+        header: "업체코드",
+        size: 120,
+        minSize: 100,
+        maxSize: 160,
+        cell: (info) => (
+          <span className="font-mono">{info.getValue()}</span>
+        ),
+      }),
+      columnHelper.accessor("name", {
+        header: "업체명",
+        size: 180,
+        minSize: 140,
+        maxSize: 260,
+        cell: (info) => (
+          <span className="font-medium">{info.getValue()}</span>
+        ),
+      }),
+      columnHelper.accessor("contactPerson", {
+        header: "담당자",
+        size: 100,
+        minSize: 80,
+        maxSize: 140,
+        cell: (info) => info.getValue() || "-",
+      }),
+      columnHelper.accessor("phone", {
+        header: "연락처",
+        size: 140,
+        minSize: 120,
+        maxSize: 180,
+        cell: (info) =>
+          info.getValue() ? (
+            <span className="flex items-center gap-1">
+              <Phone className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{info.getValue()}</span>
+            </span>
+          ) : (
+            "-"
+          ),
+      }),
+      columnHelper.accessor("email", {
+        header: "이메일",
+        size: 200,
+        minSize: 160,
+        maxSize: 280,
+        cell: (info) =>
+          info.getValue() ? (
+            <span className="flex items-center gap-1">
+              <Mail className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{info.getValue()}</span>
+            </span>
+          ) : (
+            "-"
+          ),
+      }),
+      columnHelper.accessor("isActive", {
+        header: "상태",
+        size: 80,
+        minSize: 70,
+        maxSize: 100,
+        cell: (info) => (
+          <span className={`badge ${info.getValue() ? "badge-success" : "badge-secondary"}`}>
+            {info.getValue() ? "활성" : "비활성"}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-2">
+            {can("master-data", "edit") && (
+              <button
+                onClick={() => handleEdit(row.original)}
+                className="table-action-btn edit"
+                title="수정"
+              >
+                <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+            {can("master-data", "delete") && (
+              <button
+                onClick={() => handleDelete(row.original)}
+                className="table-action-btn delete"
+                title="삭제"
+              >
+                <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+              </button>
+            )}
+          </div>
+        ),
+      }),
+    ],
+    [can]
+  );
+
+  const table = useReactTable({
+    data: filteredSuppliers,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   if (isLoading) {
@@ -295,25 +427,59 @@ export default function SuppliersContent() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="glass-card overflow-hidden">
+      {/* Table - Tanstack Table */}
+      <div className="glass-card overflow-hidden table-container">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">업체코드</th>
-                <th className="table-header table-col-name">업체명</th>
-                <th className="table-header table-col-short">담당자</th>
-                <th className="table-header table-col-code">연락처</th>
-                <th className="table-header table-col-name">이메일</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredSuppliers?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <Truck className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 공급업체가 없습니다."}
@@ -321,52 +487,32 @@ export default function SuppliersContent() {
                   </td>
                 </tr>
               ) : (
-                filteredSuppliers?.map((supplier) => (
-                  <tr key={supplier.id} className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)]">
-                    <td className="table-cell font-mono table-col-code">{supplier.code}</td>
-                    <td className="table-cell font-medium table-col-name">{supplier.name}</td>
-                    <td className="table-cell table-col-short">{supplier.contactPerson || "-"}</td>
-                    <td className="table-cell table-col-code">
-                      {supplier.phone ? (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 flex-shrink-0" />
-                          <span className="table-truncate">{supplier.phone}</span>
-                        </span>
-                      ) : "-"}
-                    </td>
-                    <td className="table-cell table-col-name">
-                      {supplier.email ? (
-                        <span className="flex items-center gap-1">
-                          <Mail className="w-3 h-3 flex-shrink-0" />
-                          <span className="table-truncate">{supplier.email}</span>
-                        </span>
-                      ) : "-"}
-                    </td>
-                    <td className="table-cell table-col-status">
-                      <span className={`badge ${supplier.isActive ? "badge-success" : "badge-secondary"}`}>
-                        {supplier.isActive ? "활성" : "비활성"}
-                      </span>
-                    </td>
-                    <td className="table-cell text-center table-col-action">
-                      <div className="flex items-center justify-center gap-2">
-                        {can("master-data", "edit") && (
-                          <button onClick={() => handleEdit(supplier)} className="table-action-btn edit" title="수정">
-                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                        {can("master-data", "delete") && (
-                          <button onClick={() => handleDelete(supplier)} className="table-action-btn delete" title="삭제">
-                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredSuppliers.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       <SupplierForm

@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  SortingState,
+  ColumnResizeMode,
+} from "@tanstack/react-table";
 import {
   ShoppingCart,
   Plus,
@@ -16,6 +25,9 @@ import {
   CheckCircle,
   Clock,
   ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import OrderForm from "@/components/forms/OrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -41,6 +53,7 @@ interface Order {
   orderNumber: string;
   supplierId: number;
   supplier: { id: number; name: string } | null;
+  project: string | null;
   orderDate: string;
   expectedDate: string | null;
   status: string;
@@ -101,6 +114,8 @@ const statusLabels: Record<string, string> = {
   CANCELLED: "취소됨",
 };
 
+const columnHelper = createColumnHelper<Order>();
+
 export default function OrdersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -114,6 +129,8 @@ export default function OrdersPage() {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ["orders"],
@@ -266,12 +283,181 @@ export default function OrdersPage() {
     }
   };
 
-  const filteredOrders = orders?.filter((order) => {
-    const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.supplier?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === "all" || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
+  const filteredOrders = useMemo(() => {
+    return orders?.filter((order) => {
+      const matchesSearch =
+        order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.supplier?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = filterStatus === "all" || order.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    }) || [];
+  }, [orders, searchTerm, filterStatus]);
+
+  // Tanstack Table 컬럼 정의
+  const columns = useMemo(
+    () => [
+      // 발주번호
+      columnHelper.accessor("orderNumber", {
+        header: "발주번호",
+        size: 140,
+        minSize: 100,
+        maxSize: 200,
+        cell: (info) => (
+          <Link
+            href={`/orders/${info.row.original.id}`}
+            className="text-[var(--primary)] hover:underline truncate block font-medium"
+            title={info.getValue()}
+          >
+            {info.getValue()}
+          </Link>
+        ),
+      }),
+      // 공급업체
+      columnHelper.accessor((row) => row.supplier?.name ?? "-", {
+        id: "supplier",
+        header: "공급업체",
+        size: 150,
+        minSize: 100,
+        maxSize: 220,
+        cell: ({ row }) =>
+          row.original.supplier ? (
+            <Link
+              href="/suppliers"
+              className="text-[var(--primary)] hover:underline truncate block"
+              title={row.original.supplier.name}
+            >
+              {row.original.supplier.name}
+            </Link>
+          ) : (
+            <span className="text-[var(--text-muted)]">-</span>
+          ),
+      }),
+      // 프로젝트
+      columnHelper.accessor("project", {
+        header: "프로젝트",
+        size: 130,
+        minSize: 80,
+        maxSize: 180,
+        cell: (info) =>
+          info.getValue() ? (
+            <span className="px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-medium truncate block max-w-full">
+              {info.getValue()}
+            </span>
+          ) : (
+            <span className="text-[var(--text-muted)]">-</span>
+          ),
+      }),
+      // 발주일
+      columnHelper.accessor("orderDate", {
+        header: "발주일",
+        size: 110,
+        minSize: 90,
+        maxSize: 130,
+        cell: (info) => (
+          <span className="whitespace-nowrap">
+            {new Date(info.getValue()).toLocaleDateString("ko-KR")}
+          </span>
+        ),
+      }),
+      // 입고예정일
+      columnHelper.accessor("expectedDate", {
+        header: "입고예정일",
+        size: 110,
+        minSize: 90,
+        maxSize: 130,
+        cell: (info) => (
+          <span className="whitespace-nowrap">
+            {info.getValue()
+              ? new Date(info.getValue()!).toLocaleDateString("ko-KR")
+              : "-"}
+          </span>
+        ),
+      }),
+      // 품목수
+      columnHelper.accessor((row) => row.items.length, {
+        id: "itemCount",
+        header: "품목수",
+        size: 80,
+        minSize: 60,
+        maxSize: 100,
+        cell: (info) => (
+          <span className="tabular-nums">{info.getValue()}개</span>
+        ),
+      }),
+      // 금액
+      columnHelper.accessor("totalAmount", {
+        header: "금액",
+        size: 130,
+        minSize: 100,
+        maxSize: 180,
+        cell: (info) => (
+          <span className="tabular-nums text-right block font-medium">
+            ₩{info.getValue().toLocaleString()}
+          </span>
+        ),
+      }),
+      // 상태
+      columnHelper.accessor("status", {
+        header: "상태",
+        size: 90,
+        minSize: 70,
+        maxSize: 120,
+        cell: (info) => (
+          <span className={`badge ${statusColors[info.getValue()] || "badge-secondary"}`}>
+            {statusLabels[info.getValue()] || info.getValue()}
+          </span>
+        ),
+      }),
+      // 작업
+      columnHelper.display({
+        id: "actions",
+        header: "작업",
+        size: 110,
+        minSize: 110,
+        maxSize: 110,
+        enableResizing: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center gap-1">
+            <Link
+              href={`/orders/${row.original.id}`}
+              className="table-action-btn edit"
+              title="상세보기"
+              aria-label={`${row.original.orderNumber} 상세보기`}
+            >
+              <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
+            </Link>
+            <button
+              onClick={() => handleEdit(row.original)}
+              className="table-action-btn edit"
+              title="수정"
+              aria-label={`${row.original.orderNumber} 수정`}
+            >
+              <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+            </button>
+            <button
+              onClick={() => handleDelete(row.original)}
+              className="table-action-btn delete"
+              title="삭제"
+              aria-label={`${row.original.orderNumber} 삭제`}
+            >
+              <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+            </button>
+          </div>
+        ),
+      }),
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: filteredOrders,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode,
+    enableColumnResizing: true,
   });
 
   if (isLoading) {
@@ -439,26 +625,59 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Orders Table - Tanstack Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-bordered">
-            <thead>
-              <tr className="border-b border-[var(--glass-border)]">
-                <th className="table-header table-col-code">발주번호</th>
-                <th className="table-header table-col-name">공급업체</th>
-                <th className="table-header table-col-date">발주일</th>
-                <th className="table-header table-col-date">입고예정일</th>
-                <th className="table-header table-col-qty">품목수</th>
-                <th className="table-header text-right table-col-amount-lg">금액</th>
-                <th className="table-header table-col-status">상태</th>
-                <th className="table-header text-center table-col-action">작업</th>
-              </tr>
+          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
+            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
+                      style={{ width: header.getSize() }}
+                    >
+                      <div
+                        className={`flex items-center gap-1 ${
+                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-[var(--text-muted)]">
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="w-3 h-3" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="w-3 h-3" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {/* 컬럼 리사이즈 핸들 */}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
+                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
+                          }`}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
             </thead>
-            <tbody>
-              {filteredOrders?.length === 0 ? (
+            <tbody className="divide-y divide-[var(--glass-border)]">
+              {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="table-cell text-center py-8">
+                  <td colSpan={columns.length} className="px-6 py-12 text-center">
                     <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 발주가 없습니다."}
@@ -474,84 +693,32 @@ export default function OrdersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders?.map((order) => (
+                table.getRowModel().rows.map((row) => (
                   <tr
-                    key={order.id}
-                    className="border-b border-[var(--glass-border)] hover:bg-[var(--glass-bg)] transition-colors"
+                    key={row.id}
+                    className="hover:bg-[var(--glass-bg)] transition-colors"
                   >
-                    <td className="table-cell font-medium table-col-code">
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="text-[var(--primary)] hover:underline table-truncate block"
-                        title={order.orderNumber}
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
+                        style={{ width: cell.column.getSize() }}
                       >
-                        {order.orderNumber}
-                      </Link>
-                    </td>
-                    <td className="table-cell table-col-name">
-                      {order.supplier ? (
-                        <Link
-                          href="/suppliers"
-                          className="text-[var(--primary)] hover:underline table-truncate block"
-                          title={order.supplier.name}
-                        >
-                          {order.supplier.name}
-                        </Link>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="table-cell table-col-date">
-                      {new Date(order.orderDate).toLocaleDateString("ko-KR")}
-                    </td>
-                    <td className="table-cell table-col-date">
-                      {order.expectedDate
-                        ? new Date(order.expectedDate).toLocaleDateString("ko-KR")
-                        : "-"}
-                    </td>
-                    <td className="table-cell table-col-qty">{order.items.length}개</td>
-                    <td className="table-cell text-right font-medium tabular-nums table-col-amount-lg">
-                      ₩{order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="table-cell table-col-status">
-                      <span className={`badge ${statusColors[order.status] || "badge-secondary"}`}>
-                        {statusLabels[order.status] || order.status}
-                      </span>
-                    </td>
-                    <td className="table-cell text-center table-col-action">
-                      <div className="flex items-center justify-center gap-1">
-                        <Link
-                          href={`/orders/${order.id}`}
-                          className="table-action-btn edit"
-                          title="상세보기"
-                          aria-label={`${order.orderNumber} 상세보기`}
-                        >
-                          <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </Link>
-                        <button
-                          onClick={() => handleEdit(order)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${order.orderNumber} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(order)}
-                          className="table-action-btn delete"
-                          title="삭제"
-                          aria-label={`${order.orderNumber} 삭제`}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                      </div>
-                    </td>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        {/* 테이블 하단 안내 */}
+        {filteredOrders.length > 0 && (
+          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
+            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
+          </div>
+        )}
       </div>
 
       {/* Order Form Modal */}

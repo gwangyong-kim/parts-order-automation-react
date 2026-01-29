@@ -32,9 +32,9 @@ export default function MasterDataPage() {
 
   const tabs = [
     { id: "parts" as const, label: "파츠", icon: Package },
-    { id: "categories" as const, label: "카테고리", icon: FolderTree },
     { id: "products" as const, label: "제품", icon: Box },
     { id: "suppliers" as const, label: "공급업체", icon: Truck },
+    { id: "categories" as const, label: "카테고리", icon: FolderTree },
   ];
 
   return (
@@ -43,7 +43,7 @@ export default function MasterDataPage() {
       <div className="flex items-center gap-3">
         <Database className="w-8 h-8 text-[var(--primary)]" />
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">마스터 데이터</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">기준정보</h1>
           <p className="text-[var(--text-secondary)]">
             파츠, 제품, 공급업체 등 기준 정보를 관리합니다.
           </p>

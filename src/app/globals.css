@@ -34,12 +34,14 @@
   /* Status Colors */
   --success-50: #ecfdf5;
   --success-100: #d1fae5;
+  --success-400: #34d399;
   --success-500: #10b981;
   --success-600: #059669;
   --success: var(--success-500);
 
   --warning-50: #fffbeb;
   --warning-100: #fef3c7;
+  --warning-400: #fbbf24;
   --warning-500: #f59e0b;
   --warning-600: #d97706;
   --warning: var(--warning-500);
@@ -684,6 +686,70 @@ h1, h2, h3, h4, h5, h6, .heading {
   color: var(--gray-900);
 }
 
+.btn-success {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms var(--ease-out-expo);
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--success-500) 0%, var(--success-600) 100%);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--success-400) 0%, var(--success-500) 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-success:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-warning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms var(--ease-out-expo);
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--warning-500) 0%, var(--warning-600) 100%);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--warning-400) 0%, var(--warning-500) 100%);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-warning:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-danger {
   background: linear-gradient(180deg, var(--danger-500) 0%, var(--danger-600) 100%);
   color: #ffffff;
@@ -887,6 +953,24 @@ h1, h2, h3, h4, h5, h6, .heading {
   border-right: none;
 }
 
+/* 테이블 컨테이너 - 와이드 모니터 대응 */
+/* max-width 제한 제거: Tanstack Table이 컬럼 너비를 관리하므로 컨테이너는 100% 사용 */
+.table-container {
+  width: 100%;
+  max-width: none;
+}
+
+/* Tanstack Table - 화면 너비에 맞게 확장 */
+.tanstack-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+/* 테이블 레이아웃 고정 - 일관된 컬럼 너비 */
+.table-fixed {
+  table-layout: fixed;
+}
+
 /* 테이블 컬럼 너비 통일 */
 
 /* 코드 필드 (파츠코드, 제품코드, 발주번호 등) */
@@ -940,9 +1024,10 @@ h1, h2, h3, h4, h5, h6, .heading {
 
 /* 날짜 컬럼 */
 .table-col-date {
-  min-width: 90px;
-  max-width: 100px;
-  width: 100px;
+  min-width: 95px;
+  max-width: 95px;
+  width: 95px;
+  white-space: nowrap;
 }
 
 /* 일시 컬럼 */
