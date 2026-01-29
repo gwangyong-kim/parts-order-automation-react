@@ -33,8 +33,8 @@ interface OrderStatusData {
 interface OrderStatusReportProps {
   data: OrderStatusData | null;
   isLoading: boolean;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export default function OrderStatusReport({

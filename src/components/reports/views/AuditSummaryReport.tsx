@@ -41,8 +41,8 @@ interface AuditSummaryData {
 interface AuditSummaryReportProps {
   data: AuditSummaryData | null;
   isLoading: boolean;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export default function AuditSummaryReport({

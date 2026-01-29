@@ -29,8 +29,8 @@ interface SalesAnalysisData {
 interface SalesAnalysisReportProps {
   data: SalesAnalysisData | null;
   isLoading: boolean;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export default function SalesAnalysisReport({

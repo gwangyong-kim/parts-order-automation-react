@@ -11,7 +11,9 @@ export async function PATCH(request: Request) {
       return handleApiError(authResult.error);
     }
 
-    const userId = authResult.session.user.id;
+    const userId = typeof authResult.session.user.id === "string"
+      ? parseInt(authResult.session.user.id)
+      : authResult.session.user.id;
     const body = await request.json();
 
     // 허용된 필드만 업데이트

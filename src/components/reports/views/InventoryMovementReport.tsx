@@ -35,8 +35,8 @@ interface InventoryMovementReportProps {
   isLoading: boolean;
   filterValue: number;
   onFilterChange: (value: number) => void;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 const filterOptions = [

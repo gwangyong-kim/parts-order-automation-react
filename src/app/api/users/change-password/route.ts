@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       select: { id: true, passwordHash: true },
     });
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw unauthorized("사용자를 찾을 수 없습니다.");
     }
 

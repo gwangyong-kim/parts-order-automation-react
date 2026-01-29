@@ -31,8 +31,8 @@ interface CostAnalysisData {
 interface CostAnalysisReportProps {
   data: CostAnalysisData | null;
   isLoading: boolean;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export default function CostAnalysisReport({

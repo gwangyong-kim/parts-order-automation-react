@@ -19,14 +19,17 @@ services:
     container_name: partsync-app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8080:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/partsync.db
       - AUTH_SECRET=${AUTH_SECRET:-partsync-docker-secret-change-in-production}
-      - AUTH_URL=http://localhost:3000
+      - AUTH_URL=${AUTH_URL:-http://localhost:8080}
+      # Google OAuth (optional)
+      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID:-}
+      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET:-}
       - NEXT_PUBLIC_APP_NAME=PartSync
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:8080
       # Backup settings
       - BACKUP_ON_STARTUP=${BACKUP_ON_STARTUP:-true}
       - BACKUP_MAX_COUNT=${BACKUP_MAX_COUNT:-30}

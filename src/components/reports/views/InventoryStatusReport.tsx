@@ -33,8 +33,8 @@ interface InventoryStatusData {
 interface InventoryStatusReportProps {
   data: InventoryStatusData | null;
   isLoading: boolean;
-  onExportCSV: () => void;
-  onExportJSON: () => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export default function InventoryStatusReport({
