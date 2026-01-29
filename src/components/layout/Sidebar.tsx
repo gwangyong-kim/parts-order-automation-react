@@ -18,6 +18,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/hooks/usePermission";
 
 interface NavItem {
   label: string;
@@ -69,11 +70,24 @@ const navigationGroups: NavGroup[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { can } = usePermission();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+
+  // 권한에 따라 네비게이션 항목 필터링
+  const filteredNavigationGroups = navigationGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      // 사용자 관리는 users.view 권한 필요
+      if (item.href === "/users") {
+        return can("users", "view");
+      }
+      return true;
+    }),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <aside className="glass-sidebar fixed left-0 top-0 z-40 h-screen w-64 flex flex-col">
@@ -93,7 +107,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">
-        {navigationGroups.map((group, groupIndex) => (
+        {filteredNavigationGroups.map((group, groupIndex) => (
           <div key={group.title || `group-${groupIndex}`} className="mb-2">
             {group.title && (
               <div className="px-6 py-2">

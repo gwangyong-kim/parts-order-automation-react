@@ -21,6 +21,7 @@ import TransactionForm from "@/components/forms/TransactionForm";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 const transactionUploadFields = [
   { name: "파츠코드", description: "파츠 코드", required: false, type: "text", example: "P2501-0001" },
@@ -128,6 +129,7 @@ const typeIcons: Record<string, React.ElementType> = {
 export default function TransactionsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showFormModal, setShowFormModal] = useState(false);
@@ -349,10 +351,12 @@ export default function TransactionsPage() {
             파츠 입고, 출고, 조정 내역을 관리합니다.
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary btn-lg">
-          <Plus className="w-5 h-5" />
-          수동 입출고
-        </button>
+        {can("inventory", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary btn-lg">
+            <Plus className="w-5 h-5" />
+            수동 입출고
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -473,14 +477,18 @@ export default function TransactionsPage() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
-            <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
-              <Upload className="w-4 h-4" />
-              가져오기
-            </button>
+            {can("inventory", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
+            {can("inventory", "import") && (
+              <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
+                <Upload className="w-4 h-4" />
+                가져오기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -512,7 +520,7 @@ export default function TransactionsPage() {
                     <p className="text-[var(--text-muted)]">
                       {searchTerm || typeFilter ? "검색 결과가 없습니다." : "입출고 내역이 없습니다."}
                     </p>
-                    {!searchTerm && !typeFilter && (
+                    {!searchTerm && !typeFilter && can("inventory", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
@@ -595,22 +603,26 @@ export default function TransactionsPage() {
                       </td>
                       <td className="table-cell text-center table-col-action">
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={(e) => handleEdit(tx, e)}
-                            className="table-action-btn edit"
-                            title="수정"
-                            aria-label={`${tx.transactionCode} 수정`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDelete(tx, e)}
-                            className="table-action-btn delete"
-                            title="삭제"
-                            aria-label={`${tx.transactionCode} 삭제`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {can("inventory", "edit") && (
+                            <button
+                              onClick={(e) => handleEdit(tx, e)}
+                              className="table-action-btn edit"
+                              title="수정"
+                              aria-label={`${tx.transactionCode} 수정`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {can("inventory", "delete") && (
+                            <button
+                              onClick={(e) => handleDelete(tx, e)}
+                              className="table-action-btn delete"
+                              title="삭제"
+                              aria-label={`${tx.transactionCode} 삭제`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

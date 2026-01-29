@@ -25,6 +25,7 @@ import UsageGuide, {
 } from "@/components/ui/UsageGuide";
 import { useToast } from "@/components/ui/Toast";
 import type { Warehouse } from "@/types/warehouse";
+import { usePermission } from "@/hooks/usePermission";
 
 const WAREHOUSE_UPLOAD_FIELDS = [
   { name: "창고코드", description: "창고 고유 코드", required: true, example: "WH01", type: "text" },
@@ -93,6 +94,7 @@ async function updateWarehouse(id: number, data: Partial<Warehouse>): Promise<Wa
 export default function WarehouseManagement() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [showForm, setShowForm] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -371,25 +373,29 @@ export default function WarehouseManagement() {
             tips={WAREHOUSE_GUIDE_TIPS}
             warnings={WAREHOUSE_GUIDE_WARNINGS}
           />
-          <button
-            onClick={() => setShowBulkUpload(true)}
-            className="btn btn-secondary"
-          >
-            <Upload className="w-5 h-5" />
-            대량 등록
-          </button>
-          <button
-            onClick={() => {
-              setIsEditMode(false);
-              setSelectedWarehouse(null);
-              resetForm();
-              setShowForm(true);
-            }}
-            className="btn btn-primary"
-          >
-            <Plus className="w-4 h-4" />
-            창고 등록
-          </button>
+          {can("warehouse", "create") && (
+            <button
+              onClick={() => setShowBulkUpload(true)}
+              className="btn btn-secondary"
+            >
+              <Upload className="w-5 h-5" />
+              대량 등록
+            </button>
+          )}
+          {can("warehouse", "create") && (
+            <button
+              onClick={() => {
+                setIsEditMode(false);
+                setSelectedWarehouse(null);
+                resetForm();
+                setShowForm(true);
+              }}
+              className="btn btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              창고 등록
+            </button>
+          )}
         </div>
       </div>
 
@@ -407,7 +413,7 @@ export default function WarehouseManagement() {
             />
           </div>
 
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && can("warehouse", "delete") && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-[var(--text-secondary)]">
                 {selectedIds.length}개 선택됨
@@ -429,17 +435,19 @@ export default function WarehouseManagement() {
         <div className="glass-card p-8 text-center">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-[var(--text-muted)]" />
           <p className="text-[var(--text-muted)] mb-4">등록된 창고가 없습니다.</p>
-          <button
-            onClick={() => {
-              setIsEditMode(false);
-              setSelectedWarehouse(null);
-              resetForm();
-              setShowForm(true);
-            }}
-            className="text-[var(--primary)] hover:underline"
-          >
-            첫 번째 창고 등록하기
-          </button>
+          {can("warehouse", "create") && (
+            <button
+              onClick={() => {
+                setIsEditMode(false);
+                setSelectedWarehouse(null);
+                resetForm();
+                setShowForm(true);
+              }}
+              className="text-[var(--primary)] hover:underline"
+            >
+              첫 번째 창고 등록하기
+            </button>
+          )}
         </div>
       ) : filteredAndSortedWarehouses.length === 0 ? (
         <div className="glass-card p-8 text-center">
@@ -452,17 +460,19 @@ export default function WarehouseManagement() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={
-                        filteredAndSortedWarehouses.length > 0 &&
-                        selectedIds.length === filteredAndSortedWarehouses.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="w-4 h-4 rounded border-[var(--gray-300)]"
-                    />
-                  </th>
+                  {can("warehouse", "delete") && (
+                    <th className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredAndSortedWarehouses.length > 0 &&
+                          selectedIds.length === filteredAndSortedWarehouses.length
+                        }
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="w-4 h-4 rounded border-[var(--gray-300)]"
+                      />
+                    </th>
+                  )}
                   <th>
                     <button
                       onClick={() => handleSort("code")}
@@ -528,16 +538,18 @@ export default function WarehouseManagement() {
                       key={warehouse.id}
                       className={isSelected ? "bg-[var(--primary)]/5" : ""}
                     >
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) =>
-                            handleSelectOne(warehouse.id, e.target.checked)
-                          }
-                          className="w-4 h-4 rounded border-[var(--gray-300)]"
-                        />
-                      </td>
+                      {can("warehouse", "delete") && (
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) =>
+                              handleSelectOne(warehouse.id, e.target.checked)
+                            }
+                            className="w-4 h-4 rounded border-[var(--gray-300)]"
+                          />
+                        </td>
+                      )}
                       <td>
                         <span className="font-mono text-sm font-medium text-[var(--primary)]">
                           {warehouse.code}
@@ -573,27 +585,33 @@ export default function WarehouseManagement() {
                       </td>
                       <td>
                         <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleEdit(warehouse)}
-                            className="table-action-btn"
-                            title="수정"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <Link
-                            href={`/warehouse/${warehouse.id}`}
-                            className="table-action-btn"
-                            title="레이아웃 편집"
-                          >
-                            <Map className="w-4 h-4" />
-                          </Link>
-                          <button
-                            onClick={() => handleDelete(warehouse)}
-                            className="table-action-btn delete"
-                            title="삭제"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {can("warehouse", "edit") && (
+                            <button
+                              onClick={() => handleEdit(warehouse)}
+                              className="table-action-btn"
+                              title="수정"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {can("warehouse", "edit") && (
+                            <Link
+                              href={`/warehouse/${warehouse.id}`}
+                              className="table-action-btn"
+                              title="레이아웃 편집"
+                            >
+                              <Map className="w-4 h-4" />
+                            </Link>
+                          )}
+                          {can("warehouse", "delete") && (
+                            <button
+                              onClick={() => handleDelete(warehouse)}
+                              className="table-action-btn delete"
+                              title="삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

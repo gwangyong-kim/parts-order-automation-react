@@ -520,7 +520,7 @@ export default function SalesOrdersPage() {
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 수주가 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("sales-orders", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"

@@ -19,6 +19,7 @@ import {
   Package,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 interface MrpResult {
   id: number;
@@ -95,6 +96,7 @@ async function createOrdersFromMrp(items: { partId: number; orderQty: number }[]
 export default function MrpPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [showRecommendedOnly, setShowRecommendedOnly] = useState(true); // 기본값: 발주 필요 품목만
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -236,31 +238,35 @@ export default function MrpPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => calculateMutation.mutate()}
-            disabled={calculateMutation.isPending}
-            className="btn-primary flex items-center gap-2"
-          >
-            {calculateMutation.isPending ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4" />
-            )}
-            MRP 계산
-          </button>
-          <button
-            onClick={handleQuickOrderAll}
-            disabled={createOrderMutation.isPending || recommendedCount === 0}
-            className="btn-success flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {createOrderMutation.isPending ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <ShoppingCart className="w-4 h-4" />
-            )}
-            전체 발주 ({recommendedCount})
-          </button>
-          {selectedIds.size > 0 && (
+          {can("mrp", "create") && (
+            <button
+              onClick={() => calculateMutation.mutate()}
+              disabled={calculateMutation.isPending}
+              className="btn-primary flex items-center gap-2"
+            >
+              {calculateMutation.isPending ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              MRP 계산
+            </button>
+          )}
+          {can("orders", "create") && (
+            <button
+              onClick={handleQuickOrderAll}
+              disabled={createOrderMutation.isPending || recommendedCount === 0}
+              className="btn-success flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {createOrderMutation.isPending ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <ShoppingCart className="w-4 h-4" />
+              )}
+              전체 발주 ({recommendedCount})
+            </button>
+          )}
+          {can("orders", "create") && selectedIds.size > 0 && (
             <button
               onClick={() => setShowOrderModal(true)}
               className="btn-secondary flex items-center gap-2"
@@ -346,13 +352,15 @@ export default function MrpPage() {
             </button>
           </div>
           <div className="h-6 w-px bg-[var(--glass-border)]" />
-          <button
-            onClick={toggleSelectAll}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg btn-secondary text-sm"
-          >
-            {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-            {allSelected ? "선택 해제" : "전체 선택"}
-          </button>
+          {can("orders", "create") && (
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg btn-secondary text-sm"
+            >
+              {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+              {allSelected ? "선택 해제" : "전체 선택"}
+            </button>
+          )}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--success)]/10 text-[var(--success)] text-sm">
               <CheckSquare className="w-4 h-4" />
@@ -408,7 +416,7 @@ export default function MrpPage() {
                     } ${selectedIds.has(result.id) ? "bg-[var(--primary)]/5" : ""}`}
                   >
                     <td className="table-cell">
-                      {result.recommendedOrderQty > 0 && (
+                      {can("orders", "create") && result.recommendedOrderQty > 0 && (
                         <input
                           type="checkbox"
                           checked={selectedIds.has(result.id)}

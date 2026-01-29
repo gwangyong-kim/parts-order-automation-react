@@ -131,11 +131,14 @@ const baseSections: SettingsSection[] = [
   { id: "profile", title: "프로필", icon: User },
   { id: "language", title: "언어 설정", icon: Globe },
   { id: "notifications", title: "알림 설정", icon: Bell },
-  { id: "security", title: "보안", icon: Shield },
+];
+
+// ADMIN 전용 섹션 (외부 연동)
+const adminOnlySections: SettingsSection[] = [
   { id: "integrations", title: "외부 연동", icon: Link },
 ];
 
-const adminSections: SettingsSection[] = [
+const backupSections: SettingsSection[] = [
   { id: "system", title: "시스템", icon: Database },
   { id: "upload-logs", title: "업로드 로그", icon: Upload },
 ];
@@ -147,9 +150,15 @@ export default function SettingsPage() {
   const { can } = usePermission();
   const [activeSection, setActiveSection] = useState("profile");
 
+  // ADMIN만 외부 연동 섹션 표시
+  const isAdmin = session?.user?.role === "ADMIN";
   // 백업 권한이 있는 사용자만 시스템/업로드 로그 섹션 표시
   const canViewBackup = can("backup", "view");
-  const sections = canViewBackup ? [...baseSections, ...adminSections] : baseSections;
+  const sections = [
+    ...baseSections,
+    ...(isAdmin ? adminOnlySections : []),
+    ...(canViewBackup ? backupSections : []),
+  ];
   const [language, setLanguage] = useState("ko");
   const [notifications, setNotifications] = useState({
     email: true,
@@ -170,6 +179,12 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // 프로필 폼 상태
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileDepartment, setProfileDepartment] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // 프로필 이미지 상태
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -196,10 +211,15 @@ export default function SettingsPage() {
     enabled: !!session?.user?.id,
   });
 
-  // 프로필 이미지 초기화
+  // 프로필 데이터 초기화
   useEffect(() => {
-    if (userProfile?.profileImage) {
-      setProfileImage(userProfile.profileImage);
+    if (userProfile) {
+      setProfileName(userProfile.name || "");
+      setProfileEmail(userProfile.email || "");
+      setProfileDepartment(userProfile.department || "");
+      if (userProfile.profileImage) {
+        setProfileImage(userProfile.profileImage);
+      }
     }
   }, [userProfile]);
 
@@ -380,8 +400,38 @@ export default function SettingsPage() {
     },
   });
 
-  const handleSave = () => {
-    toast.info("설정이 저장되었습니다.");
+  // 프로필 저장
+  const handleSaveProfile = async () => {
+    if (!profileName.trim()) {
+      toast.error("이름을 입력해주세요.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/users/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profileName,
+          email: profileEmail || null,
+          department: profileDepartment || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "프로필 저장에 실패했습니다.");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      toast.success("프로필이 저장되었습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "프로필 저장에 실패했습니다.");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // 비밀번호 변경 처리
@@ -633,10 +683,20 @@ export default function SettingsPage() {
             시스템 환경 및 사용자 설정을 관리합니다.
           </p>
         </div>
-        <button onClick={handleSave} className="btn-primary flex items-center gap-2">
-          <Save className="w-4 h-4" />
-          저장
-        </button>
+        {activeSection === "profile" && (
+          <button
+            onClick={handleSaveProfile}
+            disabled={isSavingProfile}
+            className="btn-primary flex items-center gap-2"
+          >
+            {isSavingProfile ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            저장
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -724,12 +784,14 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                      이름
+                      이름 <span className="text-[var(--danger)]">*</span>
                     </label>
                     <input
                       type="text"
-                      defaultValue={session?.user?.name || ""}
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
                       className="input w-full"
+                      placeholder="이름을 입력하세요"
                     />
                   </div>
                   <div>
@@ -738,8 +800,8 @@ export default function SettingsPage() {
                     </label>
                     <input
                       type="text"
-                      defaultValue={session?.user?.username || ""}
-                      className="input w-full"
+                      value={session?.user?.username || ""}
+                      className="input w-full bg-[var(--gray-100)]"
                       disabled
                     />
                   </div>
@@ -749,8 +811,10 @@ export default function SettingsPage() {
                     </label>
                     <input
                       type="email"
-                      defaultValue={session?.user?.email || ""}
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
                       className="input w-full"
+                      placeholder="이메일을 입력하세요"
                     />
                   </div>
                   <div>
@@ -759,10 +823,68 @@ export default function SettingsPage() {
                     </label>
                     <input
                       type="text"
-                      defaultValue={session?.user?.department || ""}
+                      value={profileDepartment}
+                      onChange={(e) => setProfileDepartment(e.target.value)}
                       className="input w-full"
+                      placeholder="부서를 입력하세요"
                     />
                   </div>
+                </div>
+
+                {/* 비밀번호 변경 */}
+                <div className="pt-6 border-t border-[var(--glass-border)]">
+                  <h3 className="font-medium text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    비밀번호 변경
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                        현재 비밀번호
+                      </label>
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="현재 비밀번호 입력"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                        새 비밀번호
+                      </label>
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="새 비밀번호 입력 (최소 4자)"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                        새 비밀번호 확인
+                      </label>
+                      <input
+                        type="password"
+                        className="input w-full"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="새 비밀번호 다시 입력"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                    className="btn-primary flex items-center gap-2 mt-4"
+                  >
+                    {isChangingPassword && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    비밀번호 변경
+                  </button>
                 </div>
               </div>
             </div>
@@ -836,70 +958,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Security Section */}
-          {activeSection === "security" && (
-            <div className="glass-card p-6">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
-                보안 설정
-              </h2>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-medium text-[var(--text-primary)] mb-4">비밀번호 변경</h3>
-                  <div className="space-y-4 max-w-md">
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                        현재 비밀번호
-                      </label>
-                      <input
-                        type="password"
-                        className="input w-full"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="현재 비밀번호 입력"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                        새 비밀번호
-                      </label>
-                      <input
-                        type="password"
-                        className="input w-full"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="새 비밀번호 입력 (최소 4자)"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                        새 비밀번호 확인
-                      </label>
-                      <input
-                        type="password"
-                        className="input w-full"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="새 비밀번호 다시 입력"
-                      />
-                    </div>
-                    <button
-                      onClick={handleChangePassword}
-                      disabled={isChangingPassword}
-                      className="btn-primary flex items-center gap-2"
-                    >
-                      {isChangingPassword && (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      )}
-                      비밀번호 변경
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Integrations Section */}
-          {activeSection === "integrations" && (
+          {/* Integrations Section - ADMIN only */}
+          {activeSection === "integrations" && isAdmin && (
             <div className="glass-card p-6">
               <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
                 외부 연동

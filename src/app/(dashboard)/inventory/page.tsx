@@ -15,6 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 interface InventoryItem {
   id: number;
@@ -40,6 +41,7 @@ async function fetchInventory(): Promise<InventoryItem[]> {
 
 export default function InventoryPage() {
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -149,10 +151,12 @@ export default function InventoryPage() {
             파츠별 현재고 및 가용재고를 확인합니다.
           </p>
         </div>
-        <button onClick={handleExport} className="btn btn-secondary">
-          <Download className="w-4 h-4" />
-          재고현황 다운로드
-        </button>
+        {can("inventory", "export") && (
+          <button onClick={handleExport} className="btn btn-secondary">
+            <Download className="w-4 h-4" />
+            재고현황 다운로드
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -265,10 +269,12 @@ export default function InventoryPage() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
+            {can("inventory", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
           </div>
         </div>
       </div>

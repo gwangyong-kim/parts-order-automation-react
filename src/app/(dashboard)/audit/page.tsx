@@ -28,6 +28,7 @@ import AuditForm from "@/components/forms/AuditForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 interface AuditRecord {
   id: number;
@@ -112,6 +113,7 @@ const statusLabels: Record<string, string> = {
 export default function AuditPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [showFormModal, setShowFormModal] = useState(false);
@@ -282,10 +284,12 @@ export default function AuditPage() {
             재고 실사를 계획하고 불일치 항목을 관리합니다.
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary btn-lg">
-          <Plus className="w-5 h-5" />
-          실사 생성
-        </button>
+        {can("inventory", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary btn-lg">
+            <Plus className="w-5 h-5" />
+            실사 생성
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -362,10 +366,12 @@ export default function AuditPage() {
               <option value="YEARLY">연간 실사</option>
               <option value="SPOT">비정기 실사</option>
             </select>
-            <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
+            {can("inventory", "export") && (
+              <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -396,7 +402,7 @@ export default function AuditPage() {
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "실사 기록이 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("inventory", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
@@ -455,7 +461,7 @@ export default function AuditPage() {
                         >
                           <Eye className="w-4 h-4 text-[var(--text-secondary)]" />
                         </Link>
-                        {audit.status === "PLANNED" && (
+                        {audit.status === "PLANNED" && can("inventory", "edit") && (
                           <button
                             onClick={() => handleStartAudit(audit)}
                             className="table-action-btn edit"
@@ -465,22 +471,26 @@ export default function AuditPage() {
                             <Play className="w-4 h-4 text-[var(--primary)]" />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleEdit(audit)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${audit.auditCode} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(audit)}
-                          className="table-action-btn delete"
-                          title="삭제"
-                          aria-label={`${audit.auditCode} 삭제`}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        {can("inventory", "edit") && (
+                          <button
+                            onClick={() => handleEdit(audit)}
+                            className="table-action-btn edit"
+                            title="수정"
+                            aria-label={`${audit.auditCode} 수정`}
+                          >
+                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
+                        {can("inventory", "delete") && (
+                          <button
+                            onClick={() => handleDelete(audit)}
+                            className="table-action-btn delete"
+                            title="삭제"
+                            aria-label={`${audit.auditCode} 삭제`}
+                          >
+                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

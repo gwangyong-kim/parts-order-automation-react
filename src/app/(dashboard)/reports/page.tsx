@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 import {
   InventoryStatusReport,
   InventoryMovementReport,
@@ -134,6 +135,7 @@ function convertToCSV(data: ReportData): string {
 
 export default function ReportsPage() {
   const toast = useToast();
+  const { can } = usePermission();
   const [selectedReport, setSelectedReport] = useState<ReportId>("inventory-status");
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -202,11 +204,12 @@ export default function ReportsPage() {
   };
 
   const renderReportContent = () => {
+    const canExport = can("reports", "export");
     const commonProps = {
       data: reportData,
       isLoading,
-      onExportCSV: handleExportCSV,
-      onExportJSON: handleExportJSON,
+      onExportCSV: canExport ? handleExportCSV : undefined,
+      onExportJSON: canExport ? handleExportJSON : undefined,
     };
 
     switch (selectedReport) {

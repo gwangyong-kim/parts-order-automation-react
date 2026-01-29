@@ -423,14 +423,18 @@ export default function OrdersPage() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
-            <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
-              <Upload className="w-4 h-4" />
-              가져오기
-            </button>
+            {can("orders", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
+            {can("orders", "import") && (
+              <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
+                <Upload className="w-4 h-4" />
+                가져오기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -459,7 +463,7 @@ export default function OrdersPage() {
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 발주가 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("orders", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
