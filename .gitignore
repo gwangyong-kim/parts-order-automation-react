@@ -58,3 +58,6 @@ secrets/*
 *-credentials.json
 service-account*.json
 gcs-*.json
+
+# Claude Code local settings
+.claude/settings.local.json
