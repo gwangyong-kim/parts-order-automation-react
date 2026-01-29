@@ -16,7 +16,7 @@ model User {
   id           Int       @id @default(autoincrement())
   username     String    @unique
   email        String?   @unique
-  passwordHash String    @map("password_hash")
+  passwordHash String?   @map("password_hash")
   name         String
   role         String    @default("USER")
   department   String?
@@ -28,10 +28,30 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   activityLogs UserActivityLog[]
+  accounts     Account[]
 
   @@index([username])
   @@index([role])
   @@map("users")
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int     @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Permission {
