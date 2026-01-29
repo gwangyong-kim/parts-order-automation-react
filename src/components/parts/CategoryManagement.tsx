@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 interface Category {
   id: number;
@@ -67,6 +68,7 @@ async function deleteCategory(id: number): Promise<void> {
 export default function CategoryManagement() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -193,10 +195,12 @@ export default function CategoryManagement() {
             파츠 분류를 위한 카테고리를 관리합니다.
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary">
-          <Plus className="w-4 h-4" />
-          카테고리 추가
-        </button>
+        {can("master-data", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary">
+            <Plus className="w-4 h-4" />
+            카테고리 추가
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -267,18 +271,20 @@ export default function CategoryManagement() {
                 <th className="table-header">이름</th>
                 <th className="table-header">설명</th>
                 <th className="table-header text-center">파츠 수</th>
-                <th className="table-header text-center">작업</th>
+                {(can("master-data", "edit") || can("master-data", "delete")) && (
+                  <th className="table-header text-center">작업</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filteredCategories?.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="table-cell text-center py-8">
+                  <td colSpan={(can("master-data", "edit") || can("master-data", "delete")) ? 5 : 4} className="table-cell text-center py-8">
                     <FolderTree className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
                     <p className="text-[var(--text-muted)]">
                       {searchTerm ? "검색 결과가 없습니다." : "등록된 카테고리가 없습니다."}
                     </p>
-                    {!searchTerm && (
+                    {!searchTerm && can("master-data", "create") && (
                       <button
                         onClick={handleCreate}
                         className="mt-4 text-[var(--primary)] hover:underline"
@@ -308,27 +314,33 @@ export default function CategoryManagement() {
                         {category._count?.parts || 0}개
                       </span>
                     </td>
-                    <td className="table-cell text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleEdit(category)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${category.name} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(category)}
-                          className="table-action-btn delete"
-                          title="삭제"
-                          aria-label={`${category.name} 삭제`}
-                          disabled={(category._count?.parts || 0) > 0}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                      </div>
-                    </td>
+                    {(can("master-data", "edit") || can("master-data", "delete")) && (
+                      <td className="table-cell text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {can("master-data", "edit") && (
+                            <button
+                              onClick={() => handleEdit(category)}
+                              className="table-action-btn edit"
+                              title="수정"
+                              aria-label={`${category.name} 수정`}
+                            >
+                              <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                            </button>
+                          )}
+                          {can("master-data", "delete") && (
+                            <button
+                              onClick={() => handleDelete(category)}
+                              className="table-action-btn delete"
+                              title="삭제"
+                              aria-label={`${category.name} 삭제`}
+                              disabled={(category._count?.parts || 0) > 0}
+                            >
+                              <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

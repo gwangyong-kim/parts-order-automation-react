@@ -56,7 +56,7 @@ export const ROLE_PERMISSIONS: Record<Role, Record<Resource, Action[]>> = {
     "inventory": ["view", "edit", "export"],
     "mrp": ["view", "export"],
     "master-data": ["view", "export"],
-    "warehouse": ["view", "edit"],
+    "warehouse": ["view"],
     "reports": ["view", "export"],
     "settings": ["view"],
     "users": [],

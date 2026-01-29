@@ -107,20 +107,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 <ul className="py-1">
                   <li>
                     <a
-                      href="/settings/profile"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--gray-700)] hover:bg-[var(--gray-50)] transition-colors"
-                    >
-                      <User className="w-4 h-4 text-[var(--gray-400)]" />
-                      프로필 설정
-                    </a>
-                  </li>
-                  <li>
-                    <a
                       href="/settings"
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--gray-700)] hover:bg-[var(--gray-50)] transition-colors"
                     >
                       <Settings className="w-4 h-4 text-[var(--gray-400)]" />
-                      시스템 설정
+                      설정
                     </a>
                   </li>
                   <li className="border-t border-[var(--gray-100)] mt-1 pt-1">
