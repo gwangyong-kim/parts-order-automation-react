@@ -7,7 +7,7 @@ import { handleApiError, forbidden } from "@/lib/api-error";
 import prisma from "@/lib/prisma";
 
 const DATA_DIR = process.env.NODE_ENV === "production" ? "/app/data" : "./prisma";
-const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
+const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./backups";
 const DB_FILE = process.env.NODE_ENV === "production" ? "partsync.db" : "dev.db";
 const MAX_BACKUPS = parseInt(process.env.BACKUP_MAX_COUNT || "7", 10);
 const APP_VERSION = "2.0.0";

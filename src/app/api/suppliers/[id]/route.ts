@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
+import { requireAuth, requireAdmin } from "@/lib/authorization";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -8,6 +9,11 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const supplier = await prisma.supplier.findUnique({
       where: { id: parseInt(id) },
@@ -25,6 +31,11 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function PUT(request: Request, { params }: Params) {
   try {
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const body = await request.json();
 
@@ -49,6 +60,11 @@ export async function PUT(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
 
     // Soft delete

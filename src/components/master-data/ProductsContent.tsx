@@ -20,6 +20,7 @@ import ProductForm from "@/components/forms/ProductForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import MultiSheetUpload from "@/components/ui/MultiSheetUpload";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 interface BomItem {
   id: number;
@@ -127,6 +128,7 @@ export default function ProductsContent() {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -336,10 +338,12 @@ export default function ProductsContent() {
         <p className="text-sm text-[var(--text-secondary)]">
           등록된 제품 {products?.length || 0}개
         </p>
-        <button onClick={handleCreate} className="btn btn-primary">
-          <Plus className="w-4 h-4" />
-          제품 등록
-        </button>
+        {can("master-data", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary">
+            <Plus className="w-4 h-4" />
+            제품 등록
+          </button>
+        )}
       </div>
 
       {/* Search & Filter */}
@@ -369,14 +373,18 @@ export default function ProductsContent() {
                 </span>
               )}
             </button>
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
-            <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
-              <Upload className="w-4 h-4" />
-              가져오기
-            </button>
+            {can("master-data", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
+            {can("master-data", "import") && (
+              <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
+                <Upload className="w-4 h-4" />
+                가져오기
+              </button>
+            )}
           </div>
         </div>
 
@@ -469,12 +477,16 @@ export default function ProductsContent() {
                     </td>
                     <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleEdit(product)} className="table-action-btn edit" title="수정">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(product)} className="table-action-btn delete" title="삭제">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {can("master-data", "edit") && (
+                          <button onClick={() => handleEdit(product)} className="table-action-btn edit" title="수정">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {can("master-data", "delete") && (
+                          <button onClick={() => handleDelete(product)} className="table-action-btn delete" title="삭제">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

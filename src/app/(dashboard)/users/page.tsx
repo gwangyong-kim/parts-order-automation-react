@@ -16,10 +16,13 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
+  KeyRound,
 } from "lucide-react";
 import UserForm from "@/components/forms/UserForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import RolePermissionsMatrix from "@/components/settings/RolePermissionsMatrix";
+import { usePermission } from "@/hooks/usePermission";
 
 interface User {
   id: number;
@@ -97,9 +100,13 @@ const roleLabels: Record<string, string> = {
   VIEWER: "조회자",
 };
 
+type TabType = "users" | "permissions";
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
+  const [activeTab, setActiveTab] = useState<TabType>("users");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -252,6 +259,9 @@ export default function UsersPage() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  // 사용자 관리 권한 체크
+  const canViewUsers = can("users", "view");
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -268,23 +278,73 @@ export default function UsersPage() {
     );
   }
 
+  // 사용자 관리 권한이 없으면 접근 차단
+  if (!canViewUsers) {
+    return (
+      <div className="glass-card p-6 text-center">
+        <Shield className="w-12 h-12 mx-auto mb-4 text-[var(--warning)]" />
+        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">접근 권한이 없습니다</h2>
+        <p className="text-[var(--text-secondary)]">사용자 관리 페이지에 접근하려면 관리자 권한이 필요합니다.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">사용자 관리</h1>
-          <p className="text-[var(--text-secondary)]">
-            시스템 사용자 계정을 관리합니다.
-          </p>
+        <div className="flex items-center gap-3">
+          <Users className="w-8 h-8 text-[var(--primary)]" />
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">사용자 관리</h1>
+            <p className="text-[var(--text-secondary)]">
+              시스템 사용자 계정 및 권한을 관리합니다.
+            </p>
+          </div>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary btn-lg">
-          <Plus className="w-5 h-5" />
-          사용자 추가
-        </button>
+        {activeTab === "users" && can("users", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary btn-lg">
+            <Plus className="w-5 h-5" />
+            사용자 추가
+          </button>
+        )}
       </div>
 
-      {/* Stats */}
+      {/* Tab Navigation */}
+      <div className="border-b border-[var(--glass-border)]">
+        <nav className="-mb-px flex gap-1">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "users"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--gray-300)]"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            사용자 목록
+          </button>
+          <button
+            onClick={() => setActiveTab("permissions")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "permissions"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--gray-300)]"
+            }`}
+          >
+            <KeyRound className="w-4 h-4" />
+            역할별 권한
+          </button>
+        </nav>
+      </div>
+
+      {/* Permissions Tab */}
+      {activeTab === "permissions" && <RolePermissionsMatrix />}
+
+      {/* Users Tab */}
+      {activeTab === "users" && (
+        <>
+          {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="glass-card p-4">
           <div className="flex items-center gap-3">
@@ -514,22 +574,26 @@ export default function UsersPage() {
                     </td>
                     <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${user.name} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user)}
-                          className="table-action-btn delete"
-                          title="비활성화"
-                          aria-label={`${user.name} 비활성화`}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        {can("users", "edit") && (
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="table-action-btn edit"
+                            title="수정"
+                            aria-label={`${user.name} 수정`}
+                          >
+                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
+                        {can("users", "delete") && (
+                          <button
+                            onClick={() => handleDelete(user)}
+                            className="table-action-btn delete"
+                            title="비활성화"
+                            aria-label={`${user.name} 비활성화`}
+                          >
+                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -540,32 +604,34 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* User Form Modal */}
-      <UserForm
-        isOpen={showFormModal}
-        onClose={() => {
-          setShowFormModal(false);
-          setSelectedUser(null);
-        }}
-        onSubmit={handleFormSubmit}
-        initialData={selectedUser}
-        isLoading={createMutation.isPending || updateMutation.isPending}
-      />
+        {/* User Form Modal */}
+        <UserForm
+          isOpen={showFormModal}
+          onClose={() => {
+            setShowFormModal(false);
+            setSelectedUser(null);
+          }}
+          onSubmit={handleFormSubmit}
+          initialData={selectedUser}
+          isLoading={createMutation.isPending || updateMutation.isPending}
+        />
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteDialog}
-        onClose={() => {
-          setShowDeleteDialog(false);
-          setSelectedUser(null);
-        }}
-        onConfirm={handleDeleteConfirm}
-        title="사용자 비활성화"
-        message={`"${selectedUser?.name}" 사용자를 비활성화하시겠습니까? 비활성화된 사용자는 로그인할 수 없습니다.`}
-        confirmText="비활성화"
-        variant="danger"
-        isLoading={deleteMutation.isPending}
-      />
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={showDeleteDialog}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setSelectedUser(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+          title="사용자 비활성화"
+          message={`"${selectedUser?.name}" 사용자를 비활성화하시겠습니까? 비활성화된 사용자는 로그인할 수 없습니다.`}
+          confirmText="비활성화"
+          variant="danger"
+          isLoading={deleteMutation.isPending}
+        />
+        </>
+      )}
     </div>
   );
 }

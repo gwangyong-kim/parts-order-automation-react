@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError, createdResponse } from "@/lib/api-error";
+import { requireAuth, requireOperator } from "@/lib/authorization";
 import { calculateMrp } from "@/services/mrp.service";
 
 export async function GET(request: Request) {
   try {
+    // 모든 인증된 사용자 조회 가능
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "20");
@@ -42,6 +48,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // OPERATOR 이상만 생성 가능
+    const authResult = await requireOperator();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const body = await request.json();
 
     // Generate order code if not provided

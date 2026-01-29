@@ -18,6 +18,7 @@ import SupplierForm from "@/components/forms/SupplierForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import type { Supplier } from "@/types/entities";
+import { usePermission } from "@/hooks/usePermission";
 
 async function fetchSuppliers(): Promise<Supplier[]> {
   const res = await fetch("/api/suppliers?pageSize=1000");
@@ -56,6 +57,7 @@ async function deleteSupplier(id: number): Promise<void> {
 export default function SuppliersContent() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -221,10 +223,12 @@ export default function SuppliersContent() {
         <p className="text-sm text-[var(--text-secondary)]">
           등록된 공급업체 {suppliers?.length || 0}개
         </p>
-        <button onClick={handleCreate} className="btn btn-primary">
-          <Plus className="w-4 h-4" />
-          업체 등록
-        </button>
+        {can("master-data", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary">
+            <Plus className="w-4 h-4" />
+            업체 등록
+          </button>
+        )}
       </div>
 
       {/* Search & Filter */}
@@ -281,10 +285,12 @@ export default function SuppliersContent() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
+            {can("master-data", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -343,12 +349,16 @@ export default function SuppliersContent() {
                     </td>
                     <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleEdit(supplier)} className="table-action-btn edit" title="수정">
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button onClick={() => handleDelete(supplier)} className="table-action-btn delete" title="삭제">
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        {can("master-data", "edit") && (
+                          <button onClick={() => handleEdit(supplier)} className="table-action-btn edit" title="수정">
+                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
+                        {can("master-data", "delete") && (
+                          <button onClick={() => handleDelete(supplier)} className="table-action-btn delete" title="삭제">
+                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -108,11 +108,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-white/10 text-center">
-            <p className="text-white/30 text-xs">
-              기본 계정: <span className="text-white/50">admin</span> / <span className="text-white/50">admin123</span>
-            </p>
-          </div>
         </div>
       </div>
     </div>

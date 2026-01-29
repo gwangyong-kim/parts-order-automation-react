@@ -22,6 +22,7 @@ import SalesOrderForm from "@/components/forms/SalesOrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 const salesOrderUploadFields = [
   { name: "수주번호", description: "고유 수주 코드 (비워두면 자동생성: SO2601-0001)", required: false, type: "text", example: "SO2601-0001" },
@@ -157,6 +158,7 @@ const statusLabels: Record<string, string> = {
 export default function SalesOrdersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -356,10 +358,12 @@ export default function SalesOrdersPage() {
             고객 주문(수주)을 등록하고 관리합니다.
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary btn-lg">
-          <Plus className="w-5 h-5" />
-          수주 등록
-        </button>
+        {can("sales-orders", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary btn-lg">
+            <Plus className="w-5 h-5" />
+            수주 등록
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -475,14 +479,18 @@ export default function SalesOrdersPage() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
-            <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
-              <Upload className="w-4 h-4" />
-              가져오기
-            </button>
+            {can("sales-orders", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
+            {can("sales-orders", "import") && (
+              <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
+                <Upload className="w-4 h-4" />
+                가져오기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -575,22 +583,26 @@ export default function SalesOrdersPage() {
                     </td>
                     <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleEdit(order)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${order.orderNumber} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(order)}
-                          className="table-action-btn delete"
-                          title="삭제"
-                          aria-label={`${order.orderNumber} 삭제`}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        {can("sales-orders", "edit") && (
+                          <button
+                            onClick={() => handleEdit(order)}
+                            className="table-action-btn edit"
+                            title="수정"
+                            aria-label={`${order.orderNumber} 수정`}
+                          >
+                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
+                        {can("sales-orders", "delete") && (
+                          <button
+                            onClick={() => handleDelete(order)}
+                            className="table-action-btn delete"
+                            title="삭제"
+                            aria-label={`${order.orderNumber} 삭제`}
+                          >
+                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

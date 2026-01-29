@@ -6,7 +6,7 @@ import { handleApiError, forbidden, badRequest } from "@/lib/api-error";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Database = require("better-sqlite3");
 
-const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
+const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./backups";
 const DATA_DIR = process.env.NODE_ENV === "production" ? "/app/data" : "./prisma";
 const DB_FILE = process.env.NODE_ENV === "production" ? "partsync.db" : "dev.db";
 

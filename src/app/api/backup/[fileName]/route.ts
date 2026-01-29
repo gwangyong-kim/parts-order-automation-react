@@ -4,7 +4,7 @@ import path from "path";
 import { requireRole } from "@/lib/authorization";
 import { handleApiError, forbidden } from "@/lib/api-error";
 
-const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
+const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./backups";
 
 /**
  * 경로 검증: 백업 디렉토리 내의 경로인지 확인

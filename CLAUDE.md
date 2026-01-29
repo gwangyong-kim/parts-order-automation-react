@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-PartSync MRP는 부품 주문 자동화 및 재고 관리를 위한 자재 소요량 계획(MRP) 시스템입니다. Next.js 16, React 19, SQLite(Prisma ORM)로 구축되었으며, 한국어 UI를 사용합니다.
+PartSync MRP는 파츠 주문 자동화 및 재고 관리를 위한 자재 소요량 계획(MRP) 시스템입니다. Next.js 16, React 19, SQLite(Prisma ORM)로 구축되었으며, 한국어 UI를 사용합니다.
 
 ## 명령어
 

@@ -140,7 +140,7 @@ export default function WarehouseMap({
 
       {/* Legend */}
       <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm">
-        <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">MAP LEGEND</p>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">MAP 범례</p>
         <div className="flex flex-col gap-1.5">
           {highlightLocation && (
             <div className="flex items-center gap-2">

@@ -19,6 +19,7 @@ import PartForm from "@/components/forms/PartForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 import type { Part, Category } from "@/types/entities";
 import type { PartFormData } from "@/schemas/part.schema";
 
@@ -79,6 +80,7 @@ async function deletePart(id: number): Promise<void> {
 export default function PartsListContent() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
@@ -119,7 +121,7 @@ export default function PartsListContent() {
       if (partToEdit) {
         setSelectedPart(partToEdit);
         setShowFormModal(true);
-        router.replace("/parts", { scroll: false });
+        router.replace("/master-data?tab=parts", { scroll: false });
       }
     }
   }, [searchParams, parts, router]);
@@ -301,10 +303,12 @@ export default function PartsListContent() {
             등록된 파츠 {parts?.length || 0}개
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary">
-          <Plus className="w-4 h-4" />
-          파츠 등록
-        </button>
+        {can("master-data", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary">
+            <Plus className="w-4 h-4" />
+            파츠 등록
+          </button>
+        )}
       </div>
 
       {/* Filters & Search */}
@@ -387,18 +391,22 @@ export default function PartsListContent() {
               )}
             </div>
 
-            <button onClick={handleExport} className="btn-secondary">
-              <Download className="w-4 h-4" />
-              내보내기
-            </button>
+            {can("master-data", "export") && (
+              <button onClick={handleExport} className="btn-secondary">
+                <Download className="w-4 h-4" />
+                내보내기
+              </button>
+            )}
 
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="btn-secondary"
-            >
-              <Upload className="w-4 h-4" />
-              가져오기
-            </button>
+            {can("master-data", "import") && (
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="btn-secondary"
+              >
+                <Upload className="w-4 h-4" />
+                가져오기
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -490,22 +498,26 @@ export default function PartsListContent() {
                     </td>
                     <td className="table-cell text-center table-col-action">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleEdit(part)}
-                          className="table-action-btn edit"
-                          title="수정"
-                          aria-label={`${part.partName} 수정`}
-                        >
-                          <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(part)}
-                          className="table-action-btn delete"
-                          title="삭제"
-                          aria-label={`${part.partName} 삭제`}
-                        >
-                          <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
-                        </button>
+                        {can("master-data", "edit") && (
+                          <button
+                            onClick={() => handleEdit(part)}
+                            className="table-action-btn edit"
+                            title="수정"
+                            aria-label={`${part.partName} 수정`}
+                          >
+                            <Edit2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
+                        {can("master-data", "delete") && (
+                          <button
+                            onClick={() => handleDelete(part)}
+                            className="table-action-btn delete"
+                            title="삭제"
+                            aria-label={`${part.partName} 삭제`}
+                          >
+                            <Trash2 className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

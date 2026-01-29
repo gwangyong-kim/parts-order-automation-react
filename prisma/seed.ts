@@ -1,11 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { hash } from "bcryptjs";
 
-const adapter = new PrismaLibSql({
-  url: "file:./dev.db",
-});
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
   console.log("Starting seed...");
@@ -63,6 +59,23 @@ async function main() {
     },
   });
   console.log("Created operator user:", operator.username);
+
+  const viewerPassword = await hash("viewer123", 12);
+  const viewer = await prisma.user.upsert({
+    where: { username: "viewer" },
+    update: {},
+    create: {
+      username: "viewer",
+      email: "viewer@partsync.local",
+      passwordHash: viewerPassword,
+      name: "열람자",
+      role: "VIEWER",
+      department: "영업팀",
+      theme: "glassmorphism",
+      isActive: true,
+    },
+  });
+  console.log("Created viewer user:", viewer.username);
 
   // Create default permissions
   const roles = ["ADMIN", "MANAGER", "OPERATOR", "VIEWER"];

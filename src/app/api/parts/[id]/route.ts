@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
+import { requireAuth, requireAdmin } from "@/lib/authorization";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -8,6 +9,11 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const part = await prisma.part.findUnique({
       where: { id: parseInt(id) },
@@ -30,6 +36,12 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function PUT(request: Request, { params }: Params) {
   try {
+    // 마스터 데이터 수정: ADMIN, MANAGER만 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const body = await request.json();
 
@@ -63,6 +75,12 @@ export async function PUT(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
+    // 마스터 데이터 삭제: ADMIN, MANAGER만 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
 
     // Soft delete - just set isActive to false

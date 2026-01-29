@@ -21,6 +21,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import type { Part, Transaction } from "@/types/entities";
+import { usePermission } from "@/hooks/usePermission";
 
 interface PartWithInventory extends Part {
   inventory?: {
@@ -79,6 +80,7 @@ export default function PartDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { can } = usePermission();
 
   const {
     data: part,
@@ -111,7 +113,7 @@ export default function PartDetailPage({
     return (
       <div className="glass-card p-6 text-center">
         <p className="text-[var(--danger)]">파츠를 찾을 수 없습니다.</p>
-        <Link href="/parts" className="mt-4 text-[var(--primary)] hover:underline">
+        <Link href="/master-data?tab=parts" className="mt-4 text-[var(--primary)] hover:underline">
           목록으로 돌아가기
         </Link>
       </div>
@@ -146,13 +148,15 @@ export default function PartDetailPage({
             <p className="text-[var(--text-secondary)]">{part.partName}</p>
           </div>
         </div>
-        <Link
-          href={`/parts?edit=${id}`}
-          className="btn btn-primary"
-        >
-          <Edit2 className="w-4 h-4" />
-          편집
-        </Link>
+        {can("master-data", "edit") && (
+          <Link
+            href={`/master-data?tab=parts&edit=${id}`}
+            className="btn btn-primary"
+          >
+            <Edit2 className="w-4 h-4" />
+            편집
+          </Link>
+        )}
       </div>
 
       {/* Summary Cards */}

@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { partApiSchema } from "@/schemas/part.schema";
 import { handleApiError, createdResponse } from "@/lib/api-error";
+import { requireAuth, requireAdmin } from "@/lib/authorization";
 
 export async function GET(request: Request) {
   try {
+    // 인증된 사용자만 조회 가능
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "20");
@@ -48,6 +55,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // 마스터 데이터 생성: ADMIN, MANAGER만 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const body = await request.json();
 
     // 프론트엔드 필드명을 DB 필드명으로 변환

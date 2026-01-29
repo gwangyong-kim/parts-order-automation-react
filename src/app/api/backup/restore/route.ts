@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/authorization";
 import { handleApiError, forbidden, badRequest } from "@/lib/api-error";
 
 const DATA_DIR = process.env.NODE_ENV === "production" ? "/app/data" : "./prisma";
-const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./prisma/backups";
+const BACKUP_DIR = process.env.NODE_ENV === "production" ? "/app/data/backups" : "./backups";
 const DB_FILE = process.env.NODE_ENV === "production" ? "partsync.db" : "dev.db";
 
 /**

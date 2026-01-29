@@ -18,6 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Product, BomItem, SalesOrder, SalesOrderItemStatus } from "@/types/entities";
+import { usePermission } from "@/hooks/usePermission";
 
 interface ProductWithBom extends Product {
   bomItems: (BomItem & {
@@ -82,6 +83,7 @@ export default function ProductDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { can } = usePermission();
 
   const {
     data: product,
@@ -114,7 +116,7 @@ export default function ProductDetailPage({
     return (
       <div className="glass-card p-6 text-center">
         <p className="text-[var(--danger)]">제품을 찾을 수 없습니다.</p>
-        <Link href="/products" className="mt-4 text-[var(--primary)] hover:underline">
+        <Link href="/master-data?tab=products" className="mt-4 text-[var(--primary)] hover:underline">
           목록으로 돌아가기
         </Link>
       </div>
@@ -152,13 +154,15 @@ export default function ProductDetailPage({
             <p className="text-[var(--text-secondary)]">{product.productName}</p>
           </div>
         </div>
-        <Link
-          href={`/products?edit=${id}`}
-          className="btn btn-primary"
-        >
-          <Edit2 className="w-4 h-4" />
-          편집
-        </Link>
+        {can("master-data", "edit") && (
+          <Link
+            href={`/master-data?tab=products&edit=${id}`}
+            className="btn btn-primary"
+          >
+            <Edit2 className="w-4 h-4" />
+            편집
+          </Link>
+        )}
       </div>
 
       {/* Summary Cards */}

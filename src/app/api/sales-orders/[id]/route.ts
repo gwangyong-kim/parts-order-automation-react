@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { handleApiError, notFound, deletedResponse } from "@/lib/api-error";
+import { requireAuth, requireOperator, requireAdmin } from "@/lib/authorization";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -8,6 +9,12 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    // 인증된 사용자만 조회 가능
+    const authResult = await requireAuth();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const salesOrder = await prisma.salesOrder.findUnique({
       where: { id: parseInt(id) },
@@ -199,6 +206,12 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function PUT(request: Request, { params }: Params) {
   try {
+    // OPERATOR 이상만 수정 가능
+    const authResult = await requireOperator();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
     const orderId = parseInt(id);
     const body = await request.json();
@@ -255,6 +268,12 @@ export async function PUT(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
+    // ADMIN, MANAGER만 삭제 가능
+    const authResult = await requireAdmin();
+    if ("error" in authResult) {
+      return handleApiError(authResult.error);
+    }
+
     const { id } = await params;
 
     // Delete associated items first, then the order

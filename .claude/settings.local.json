@@ -32,7 +32,20 @@
       "Bash(docker restart:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: Docker 환경에서 백업 테이블 자동 생성\n\n- docker-entrypoint.sh에서 시작 시 백업 테이블 자동 생성\n- backup_history, backup_settings, backup_schedules 테이블\n- 올바른 snake_case 컬럼명 사용 \\(Prisma @map 지시자와 일치\\)\n- 기존 데이터베이스에서도 새 기능이 동작하도록 보장\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: 프로필 이미지 기능 개선\n\n- Header에 사용자 프로필 이미지 표시\n- 프로필 이미지 업로드 시 sharp로 200x200 리사이징\n- webp 포맷으로 변환하여 용량 최적화\n- API 경로\\(/api/uploads\\)를 통한 이미지 제공\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run dev:*)",
+      "Bash(dir /b \"C:\\\\Users\\\\user\\\\Desktop\\\\000 Automation Project\\\\parts-order-automation-project-react\\\\prisma\\\\backups\")",
+      "Bash(npx tsx:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)",
+      "Bash(ls:*)"
     ]
   },
   "outputStyle": "default"

@@ -21,6 +21,7 @@ import OrderForm from "@/components/forms/OrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
+import { usePermission } from "@/hooks/usePermission";
 
 const orderUploadFields = [
   { name: "발주번호", description: "고유 발주 코드 (비워두면 자동생성: PO2501-0001)", required: false, type: "text", example: "PO2501-0001" },
@@ -103,6 +104,7 @@ const statusLabels: Record<string, string> = {
 export default function OrdersPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -298,10 +300,12 @@ export default function OrdersPage() {
             파츠 발주를 생성하고 관리합니다.
           </p>
         </div>
-        <button onClick={handleCreate} className="btn btn-primary btn-lg">
-          <Plus className="w-5 h-5" />
-          발주 생성
-        </button>
+        {can("orders", "create") && (
+          <button onClick={handleCreate} className="btn btn-primary btn-lg">
+            <Plus className="w-5 h-5" />
+            발주 생성
+          </button>
+        )}
       </div>
 
       {/* Stats */}

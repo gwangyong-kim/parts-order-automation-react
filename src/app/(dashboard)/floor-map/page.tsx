@@ -353,7 +353,7 @@ export default function FloorMapPage() {
         <div className="flex items-center gap-3">
           <Map className="w-8 h-8 text-[var(--primary)]" />
           <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">창고 맵</h1>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Warehouse Map</h1>
             <p className="text-[var(--text-secondary)]">창고 레이아웃 및 피킹 작업</p>
           </div>
         </div>

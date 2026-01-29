@@ -42,6 +42,7 @@ import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import UploadLogsContent from "@/components/settings/UploadLogsContent";
+import { usePermission } from "@/hooks/usePermission";
 
 interface SettingsSection {
   id: string;
@@ -126,12 +127,15 @@ interface DiskUsage {
   };
 }
 
-const sections: SettingsSection[] = [
+const baseSections: SettingsSection[] = [
   { id: "profile", title: "프로필", icon: User },
   { id: "language", title: "언어 설정", icon: Globe },
   { id: "notifications", title: "알림 설정", icon: Bell },
   { id: "security", title: "보안", icon: Shield },
   { id: "integrations", title: "외부 연동", icon: Link },
+];
+
+const adminSections: SettingsSection[] = [
   { id: "system", title: "시스템", icon: Database },
   { id: "upload-logs", title: "업로드 로그", icon: Upload },
 ];
@@ -140,7 +144,12 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermission();
   const [activeSection, setActiveSection] = useState("profile");
+
+  // 백업 권한이 있는 사용자만 시스템/업로드 로그 섹션 표시
+  const canViewBackup = can("backup", "view");
+  const sections = canViewBackup ? [...baseSections, ...adminSections] : baseSections;
   const [language, setLanguage] = useState("ko");
   const [notifications, setNotifications] = useState({
     email: true,
@@ -209,14 +218,18 @@ export default function SettingsPage() {
   });
 
   // 백업 목록 조회
-  const { data: backupData, isLoading: backupsLoading } = useQuery({
+  const { data: backupData, isLoading: backupsLoading, error: backupsError } = useQuery({
     queryKey: ["backups"],
     queryFn: async () => {
       const res = await fetch("/api/backup");
-      if (!res.ok) throw new Error("Failed to fetch backups");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "백업 목록을 불러오는데 실패했습니다.");
+      }
       return res.json();
     },
     enabled: activeSection === "system",
+    retry: false,
   });
 
   // DB 통계 조회
@@ -1274,6 +1287,19 @@ export default function SettingsPage() {
                 {backupsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-[var(--primary)]" />
+                  </div>
+                ) : backupsError ? (
+                  <div className="text-center py-8">
+                    <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-[var(--warning)]" />
+                    <p className="text-[var(--text-secondary)]">
+                      {backupsError instanceof Error ? backupsError.message : "백업 목록을 불러오는데 실패했습니다."}
+                    </p>
+                    <button
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ["backups"] })}
+                      className="mt-3 text-sm text-[var(--primary)] hover:underline"
+                    >
+                      다시 시도
+                    </button>
                   </div>
                 ) : backupData?.backups?.length > 0 ? (
                   <div className="space-y-3">
