@@ -196,6 +196,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     maxAge: 24 * 60 * 60, // 24 hours
   },
   trustHost: true,
+  cookies: {
+    pkceCodeVerifier: {
+      name: "next-auth.pkce.code_verifier",
+      options: {
+        httpOnly: true,
+        sameSite: "none",
+        path: "/",
+        secure: true,
+      },
+    },
+  },
   secret: (() => {
     if (!process.env.AUTH_SECRET) {
       throw new Error('AUTH_SECRET 환경변수가 설정되지 않았습니다.');
