@@ -80,13 +80,54 @@ NextAuth.js credentials provider 사용. 대시보드 라우트는 `src/app/(das
 - Toast 알림: `useToast()` 훅 사용
 - 아이콘: `lucide-react`
 
+**다크 모드:**
+- `useTheme()` 훅으로 테마 관리 (light/dark/system)
+- `ThemeToggle` 컴포넌트로 테마 전환
+- CSS 변수: `data-theme="dark"` 속성 또는 `prefers-color-scheme` 미디어 쿼리
+- 테마 설정은 localStorage에 저장 (`partsync-theme` 키)
+
+**주요 UI 컴포넌트:**
+- `Modal`: Focus trap, ESC 닫기, 포커스 복원 지원
+- `Dropdown`: WAI-ARIA combobox 패턴, 키보드 네비게이션
+- `Breadcrumb`: 현재 위치 표시, `aria-current="page"`
+- `ConfirmDialog`: 삭제/위험 작업 확인 모달
+
+### 접근성 (A11y)
+
+**키보드 네비게이션:**
+- `useKeyboardShortcuts()`: 전역 단축키 등록
+- `useEscapeKey()`, `useSaveShortcut()`: 특화된 단축키 훅
+- 드롭다운/모달: Arrow, Home, End, Escape 키 지원
+
+**ARIA 패턴:**
+- Skip link: 메인 콘텐츠 바로가기 (`#main-content`)
+- Focus trap: 모달 내 Tab 순환
+- Live regions: Toast 알림에 `role="alert"`
+- 아이콘 버튼: `aria-label` 필수
+
+**스타일:**
+- `:focus-visible` 포커스 링 표시
+- `prefers-reduced-motion` 애니메이션 비활성화
+- `.sr-only` 스크린 리더 전용 텍스트
+
 ## 파일 명명 규칙
 
 - 페이지: `page.tsx` (Next.js App Router)
 - API: `route.ts`, 동적 세그먼트는 `[param]/`
 - 컴포넌트: PascalCase (예: `PartForm.tsx`)
+- 훅: camelCase `use` 접두사 (예: `useTheme.ts`, `useKeyboardShortcuts.ts`)
 - 타입: `src/types/entities.ts` (도메인 모델용)
 - 스키마: `src/schemas/*.schema.ts` (Zod 검증용)
+
+## 커스텀 훅
+
+| 훅 | 위치 | 용도 |
+|----|------|------|
+| `useTheme()` | `src/hooks/useTheme.ts` | 다크 모드 테마 관리 |
+| `useKeyboardShortcuts()` | `src/hooks/useKeyboardShortcuts.ts` | 전역 키보드 단축키 |
+| `useEscapeKey()` | `src/hooks/useKeyboardShortcuts.ts` | ESC 키 핸들링 |
+| `useSaveShortcut()` | `src/hooks/useKeyboardShortcuts.ts` | Ctrl+S 저장 단축키 |
+| `useToast()` | `src/components/ui/Toast.tsx` | Toast 알림 표시 |
 
 ## Docker 배포
 
