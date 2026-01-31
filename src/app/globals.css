@@ -116,6 +116,103 @@
   --color-danger: var(--danger);
 }
 
+/* ==================== Dark Mode ==================== */
+:root[data-theme="dark"] {
+  /* Theme Surfaces - Dark */
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --header-bg: rgba(30, 41, 59, 0.85);
+
+  /* Text - Dark */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  /* Shadows - Dark (더 강조된 효과) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(74, 135, 255, 0.3);
+  --shadow-glow-lg: 0 0 40px rgba(74, 135, 255, 0.4);
+
+  /* Glass styles - Dark */
+  --glass-bg: rgba(30, 41, 59, 0.85);
+  --glass-border: rgba(51, 65, 85, 0.8);
+
+  /* Gray 스케일 조정 (다크 모드에서 반전) */
+  --gray-25: #0f172a;
+  --gray-50: #1e293b;
+  --gray-100: #334155;
+  --gray-200: #475569;
+  --gray-300: #64748b;
+  --gray-400: #94a3b8;
+  --gray-500: #cbd5e1;
+  --gray-600: #e2e8f0;
+  --gray-700: #f1f5f9;
+  --gray-800: #f8fafc;
+  --gray-900: #fcfcfd;
+
+  /* Status Colors - Dark (밝은 버전 사용) */
+  --success-50: rgba(16, 185, 129, 0.15);
+  --success-100: rgba(16, 185, 129, 0.25);
+  --warning-50: rgba(245, 158, 11, 0.15);
+  --warning-100: rgba(245, 158, 11, 0.25);
+  --danger-50: rgba(239, 68, 68, 0.15);
+  --danger-100: rgba(239, 68, 68, 0.25);
+  --info-50: rgba(59, 130, 246, 0.15);
+  --info-100: rgba(59, 130, 246, 0.25);
+  --primary-50: rgba(30, 94, 255, 0.15);
+  --primary-100: rgba(30, 94, 255, 0.25);
+}
+
+/* System preference 지원 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0f172a;
+    --foreground: #f1f5f9;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --header-bg: rgba(30, 41, 59, 0.85);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 20px rgba(74, 135, 255, 0.3);
+    --shadow-glow-lg: 0 0 40px rgba(74, 135, 255, 0.4);
+    --glass-bg: rgba(30, 41, 59, 0.85);
+    --glass-border: rgba(51, 65, 85, 0.8);
+    --gray-25: #0f172a;
+    --gray-50: #1e293b;
+    --gray-100: #334155;
+    --gray-200: #475569;
+    --gray-300: #64748b;
+    --gray-400: #94a3b8;
+    --gray-500: #cbd5e1;
+    --gray-600: #e2e8f0;
+    --gray-700: #f1f5f9;
+    --gray-800: #f8fafc;
+    --gray-900: #fcfcfd;
+    --success-50: rgba(16, 185, 129, 0.15);
+    --success-100: rgba(16, 185, 129, 0.25);
+    --warning-50: rgba(245, 158, 11, 0.15);
+    --warning-100: rgba(245, 158, 11, 0.25);
+    --danger-50: rgba(239, 68, 68, 0.15);
+    --danger-100: rgba(239, 68, 68, 0.25);
+    --info-50: rgba(59, 130, 246, 0.15);
+    --info-100: rgba(59, 130, 246, 0.25);
+    --primary-50: rgba(30, 94, 255, 0.15);
+    --primary-100: rgba(30, 94, 255, 0.25);
+  }
+}
+
 /* ==================== Base Styles ==================== */
 * {
   box-sizing: border-box;
@@ -243,7 +340,7 @@ h1, h2, h3, h4, h5, h6, .heading {
 
 /* Hover Transitions */
 .transition-base {
-  transition: all 150ms var(--ease-out-expo);
+  transition: transform 150ms var(--ease-out-expo), opacity 150ms var(--ease-out-expo), box-shadow 150ms var(--ease-out-expo);
 }
 
 .transition-colors {
@@ -274,7 +371,7 @@ h1, h2, h3, h4, h5, h6, .heading {
   border: 1px solid var(--card-border);
   border-radius: 12px;
   box-shadow: var(--shadow-sm);
-  transition: all 200ms var(--ease-out-expo);
+  transition: box-shadow 200ms var(--ease-out-expo), border-color 200ms var(--ease-out-expo);
 }
 
 .glass-card:hover {
@@ -1425,6 +1522,30 @@ h1, h2, h3, h4, h5, h6, .heading {
 /* ==================== Utilities ==================== */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Screen Reader Only - Skip Link용 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: revert;
+  margin: revert;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
 }
 
 /* ==================== Focus Visible ==================== */

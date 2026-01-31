@@ -19,9 +19,11 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
+  History,
 } from "lucide-react";
 import type { Part, Transaction } from "@/types/entities";
 import { usePermission } from "@/hooks/usePermission";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 
 interface PartWithInventory extends Part {
   inventory?: {
@@ -125,14 +127,24 @@ export default function PartDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "마스터 데이터", href: "/master-data?tab=parts" },
+          { label: "파츠", href: "/master-data?tab=parts" },
+          { label: part.partNumber || "상세" },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
             className="p-2 hover:bg-[var(--glass-bg)] rounded-lg transition-colors"
+            aria-label="이전 페이지로 돌아가기"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" />
+            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
           </button>
           <div>
             <div className="flex items-center gap-3">
@@ -148,15 +160,21 @@ export default function PartDetailPage({
             <p className="text-[var(--text-secondary)]">{part.partName}</p>
           </div>
         </div>
-        {can("master-data", "edit") && (
-          <Link
-            href={`/master-data?tab=parts&edit=${id}`}
-            className="btn btn-primary"
-          >
-            <Edit2 className="w-4 h-4" />
-            편집
+        <div className="flex items-center gap-2">
+          <Link href={`/parts/${id}/timeline`} className="btn btn-secondary">
+            <History className="w-4 h-4" aria-hidden="true" />
+            타임라인
           </Link>
-        )}
+          {can("master-data", "edit") && (
+            <Link
+              href={`/master-data?tab=parts&edit=${id}`}
+              className="btn btn-primary"
+            >
+              <Edit2 className="w-4 h-4" aria-hidden="true" />
+              편집
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { Product, BomItem, SalesOrder, SalesOrderItemStatus } from "@/types/entities";
 import { usePermission } from "@/hooks/usePermission";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 
 interface ProductWithBom extends Product {
   bomItems: (BomItem & {
@@ -131,14 +132,24 @@ export default function ProductDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "마스터 데이터", href: "/master-data?tab=products" },
+          { label: "제품", href: "/master-data?tab=products" },
+          { label: product.productCode || "상세" },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
             className="p-2 hover:bg-[var(--glass-bg)] rounded-lg transition-colors"
+            aria-label="이전 페이지로 돌아가기"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" />
+            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
           </button>
           <div>
             <div className="flex items-center gap-3">
@@ -159,7 +170,7 @@ export default function ProductDetailPage({
             href={`/master-data?tab=products&edit=${id}`}
             className="btn btn-primary"
           >
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className="w-4 h-4" aria-hidden="true" />
             편집
           </Link>
         )}

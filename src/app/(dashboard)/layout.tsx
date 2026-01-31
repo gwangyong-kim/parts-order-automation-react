@@ -38,6 +38,14 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      {/* Skip Link - 키보드 사용자를 위한 본문 건너뛰기 링크 */}
+      <a
+        href="#main-content"
+        className="skip-link sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[var(--primary)] focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none"
+      >
+        본문으로 건너뛰기
+      </a>
+
       {/* Sidebar */}
       <Sidebar />
 
@@ -52,7 +60,7 @@ export default function DashboardLayout({
       {/* Main Content */}
       <div className="lg:ml-64">
         <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <main className="p-6">
+        <main id="main-content" className="p-6" tabIndex={-1}>
           {children}
         </main>
       </div>

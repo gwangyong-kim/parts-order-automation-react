@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import SalesOrderForm from "@/components/forms/SalesOrderForm";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 import type { PickingTask } from "@/types/warehouse";
 
 interface SalesOrderItem {
@@ -362,14 +363,23 @@ export default function SalesOrderDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "수주 관리", href: "/sales-orders" },
+          { label: order.orderCode },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
             className="p-2 hover:bg-[var(--glass-bg)] rounded-lg transition-colors"
+            aria-label="이전 페이지로 돌아가기"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" />
+            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
           </button>
           <div>
             <div className="flex items-center gap-3">
@@ -377,7 +387,7 @@ export default function SalesOrderDetailPage({
                 {order.orderCode}
               </h1>
               <span className={`badge ${statusColors[order.status] || "badge-secondary"} flex items-center gap-1`}>
-                <StatusIcon className="w-3 h-3" />
+                <StatusIcon className="w-3 h-3" aria-hidden="true" />
                 {statusLabels[order.status] || order.status}
               </span>
             </div>

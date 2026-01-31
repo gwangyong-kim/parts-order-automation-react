@@ -57,7 +57,7 @@ export default function ConfirmDialog({
         <div
           className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${config.iconBg}`}
         >
-          <Icon className={`w-8 h-8 ${config.iconColor}`} />
+          <Icon className={`w-8 h-8 ${config.iconColor}`} aria-hidden="true" />
         </div>
         <p className="text-[var(--text-secondary)]">{message}</p>
       </div>

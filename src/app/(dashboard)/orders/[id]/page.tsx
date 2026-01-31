@@ -25,6 +25,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import OrderForm from "@/components/forms/OrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Breadcrumb from "@/components/ui/Breadcrumb";
 
 interface OrderItem {
   id: number;
@@ -320,14 +321,23 @@ export default function OrderDetailPage({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: "발주 관리", href: "/orders" },
+          { label: order.orderCode },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
             className="p-2 hover:bg-[var(--glass-bg)] rounded-lg transition-colors"
+            aria-label="이전 페이지로 돌아가기"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" />
+            <ArrowLeft className="w-5 h-5 text-[var(--text-secondary)]" aria-hidden="true" />
           </button>
           <div>
             <div className="flex items-center gap-3">
@@ -337,7 +347,7 @@ export default function OrderDetailPage({
               <span
                 className={`badge ${statusColors[order.status] || "badge-secondary"} flex items-center gap-1`}
               >
-                <StatusIcon className="w-3 h-3" />
+                <StatusIcon className="w-3 h-3" aria-hidden="true" />
                 {statusLabels[order.status] || order.status}
               </span>
             </div>
@@ -349,19 +359,19 @@ export default function OrderDetailPage({
         <div className="flex items-center gap-2">
           {canReceive && hasRemainingItems && (
             <button onClick={openReceiveModal} className="btn btn-primary">
-              <PackageCheck className="w-4 h-4" />
+              <PackageCheck className="w-4 h-4" aria-hidden="true" />
               입고 처리
             </button>
           )}
           <button onClick={() => setShowEditModal(true)} className="btn btn-secondary">
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className="w-4 h-4" aria-hidden="true" />
             편집
           </button>
           <button
             onClick={() => setShowDeleteDialog(true)}
             className="btn btn-secondary text-[var(--danger)]"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             삭제
           </button>
         </div>

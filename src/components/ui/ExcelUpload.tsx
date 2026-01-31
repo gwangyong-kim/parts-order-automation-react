@@ -51,21 +51,34 @@ export default function ExcelUpload({
 
     // Parse CSV for preview
     if (selectedFile.name.endsWith(".csv")) {
-      const text = await selectedFile.text();
-      const rows = text.split("\n").filter(row => row.trim());
-      const headers = rows[0].split(",").map(h => h.trim().replace(/"/g, ""));
+      try {
+        const text = await selectedFile.text();
+        const rows = text.split("\n").filter(row => row.trim());
 
-      const data = rows.slice(1).map(row => {
-        const values = row.split(",").map(v => v.trim().replace(/"/g, ""));
-        const obj: Record<string, unknown> = {};
-        headers.forEach((header, index) => {
-          obj[header] = values[index] || "";
+        if (rows.length === 0) {
+          setErrors(["파일이 비어있습니다. 데이터가 포함된 파일을 선택해주세요."]);
+          setFile(null);
+          return;
+        }
+
+        const headers = rows[0].split(",").map(h => h.trim().replace(/"/g, ""));
+
+        const data = rows.slice(1).map(row => {
+          const values = row.split(",").map(v => v.trim().replace(/"/g, ""));
+          const obj: Record<string, unknown> = {};
+          headers.forEach((header, index) => {
+            obj[header] = values[index] || "";
+          });
+          return obj;
         });
-        return obj;
-      });
 
-      setPreview(data.slice(0, 10)); // Show first 10 rows
-      setStep("preview");
+        setPreview(data.slice(0, 10)); // Show first 10 rows
+        setStep("preview");
+      } catch (error) {
+        console.error("[ExcelUpload] Failed to parse CSV file:", error);
+        setErrors(["파일을 읽는 중 오류가 발생했습니다. 파일이 손상되었거나 형식이 올바르지 않습니다."]);
+        setFile(null);
+      }
     } else {
       // For Excel files, show preview step without parsing (server will handle)
       setPreview([]);
@@ -266,6 +279,7 @@ export default function ExcelUpload({
                 accept=".csv,.xlsx,.xls"
                 onChange={handleFileSelect}
                 className="hidden"
+                aria-label="Excel 또는 CSV 파일 선택"
               />
             </div>
 
@@ -273,8 +287,12 @@ export default function ExcelUpload({
               <div className="flex items-center gap-3 p-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-lg">
                 <FileSpreadsheet className="w-5 h-5 text-[var(--success)]" />
                 <span className="flex-1 text-sm font-medium">{file.name}</span>
-                <button onClick={() => setFile(null)} className="text-[var(--text-muted)] hover:text-[var(--danger)]">
-                  <X className="w-4 h-4" />
+                <button
+                  onClick={() => setFile(null)}
+                  aria-label="선택한 파일 제거"
+                  className="text-[var(--text-muted)] hover:text-[var(--danger)]"
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             )}
