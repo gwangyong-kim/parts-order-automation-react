@@ -24,6 +24,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  RotateCcw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -52,6 +53,16 @@ async function deletePickingTask(id: number): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete task");
 }
 
+async function revertPickingTask(id: number): Promise<{ message: string }> {
+  const res = await fetch(`/api/picking-tasks/${id}/revert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restoreInventory: true }),
+  });
+  if (!res.ok) throw new Error("Failed to revert task");
+  return res.json();
+}
+
 const statusConfig: Record<PickingTaskStatus, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "대기", color: "badge-secondary", icon: Clock },
   IN_PROGRESS: { label: "진행중", color: "badge-warning", icon: Play },
@@ -74,6 +85,7 @@ export default function PickingPage() {
   const toast = useToast();
   const [statusFilter, setStatusFilter] = useState<PickingTaskStatus | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<PickingTask | null>(null);
+  const [revertTarget, setRevertTarget] = useState<PickingTask | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
@@ -110,6 +122,18 @@ export default function PickingPage() {
       setDeleteTarget(null);
     },
     onError: () => toast.error("작업 삭제에 실패했습니다."),
+  });
+
+  const revertMutation = useMutation({
+    mutationFn: (id: number) => revertPickingTask(id),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["active-picking-data"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success(result.message);
+      setRevertTarget(null);
+    },
+    onError: () => toast.error("완료 취소에 실패했습니다."),
   });
 
   const filteredTasks = useMemo(() => {
@@ -204,7 +228,7 @@ export default function PickingPage() {
                 />
               </div>
               <span className="text-sm text-[var(--text-muted)] w-16 text-right tabular-nums">
-                {row.original.pickedItems}/{row.original.totalItems}
+                {row.original.pickedItems.toLocaleString()}/{row.original.totalItems.toLocaleString()}
               </span>
             </div>
           );
@@ -269,12 +293,21 @@ export default function PickingPage() {
                 </Link>
               )}
               {task.status === "COMPLETED" && (
-                <Link
-                  href={`/floor-map?task=${task.id}`}
-                  className="btn-secondary btn-sm"
-                >
-                  상세
-                </Link>
+                <>
+                  <Link
+                    href={`/floor-map?task=${task.id}`}
+                    className="btn-secondary btn-sm"
+                  >
+                    상세
+                  </Link>
+                  <button
+                    onClick={() => setRevertTarget(task)}
+                    className="p-2 text-[var(--warning)] hover:bg-[var(--warning)]/10 rounded-lg transition-colors"
+                    title="완료 취소"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </>
               )}
               {/* 삭제 버튼 - 완료되지 않은 작업만 */}
               {task.status !== "COMPLETED" && (
@@ -506,6 +539,18 @@ export default function PickingPage() {
         confirmText="삭제"
         variant="danger"
         isLoading={deleteMutation.isPending}
+      />
+
+      {/* Revert Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!revertTarget}
+        onClose={() => setRevertTarget(null)}
+        onConfirm={() => revertTarget && revertMutation.mutate(revertTarget.id)}
+        title="피킹 완료 취소"
+        message={`피킹 작업 "${revertTarget?.taskCode}"의 완료를 취소하시겠습니까? 출고된 재고가 모두 복원됩니다.`}
+        confirmText="완료 취소"
+        variant="warning"
+        isLoading={revertMutation.isPending}
       />
     </div>
   );

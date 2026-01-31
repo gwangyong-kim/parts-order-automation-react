@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,16 +23,16 @@ import {
   Edit2,
   Trash2,
   Layers,
-  X,
+  ChevronDown,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
 import ProductForm from "@/components/forms/ProductForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import MultiSheetUpload from "@/components/ui/MultiSheetUpload";
 import { useToast } from "@/components/ui/Toast";
 import { usePermission } from "@/hooks/usePermission";
+import MultiSheetUpload from "@/components/ui/MultiSheetUpload";
 
 interface BomItem {
   id: number;
@@ -143,11 +143,12 @@ export default function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { can } = usePermission();
+  const filterRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -159,6 +160,17 @@ export default function ProductsContent() {
     queryKey: ["products"],
     queryFn: fetchProducts,
   });
+
+  // 필터 드롭다운 외부 클릭 감지
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const editId = searchParams.get("edit");
@@ -176,6 +188,7 @@ export default function ProductsContent() {
     mutationFn: createProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("제품이 등록되었습니다.");
       setShowFormModal(false);
     },
@@ -189,6 +202,7 @@ export default function ProductsContent() {
       updateProduct(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("제품이 수정되었습니다.");
       setShowFormModal(false);
       setSelectedProduct(null);
@@ -202,6 +216,7 @@ export default function ProductsContent() {
     mutationFn: deleteProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("제품이 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedProduct(null);
@@ -268,6 +283,7 @@ export default function ProductsContent() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
 
       if (result.errors?.length > 0) {
         const errorSummary = result.errors.slice(0, 3).join(", ");
@@ -282,54 +298,71 @@ export default function ProductsContent() {
     }
   };
 
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    return products.filter((product) => {
+      const code = String(product.productCode || "").toLowerCase();
+      const name = String(product.productName || "").toLowerCase();
+      const search = searchTerm.toLowerCase();
+      const matchesSearch = code.includes(search) || name.includes(search);
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && product.isActive) ||
+        (statusFilter === "inactive" && !product.isActive);
+      const cat = String(product.category || "").toLowerCase();
+      const matchesCategory = !categoryFilter || cat.includes(categoryFilter.toLowerCase());
+      return matchesSearch && matchesStatus && matchesCategory;
+    });
+  }, [products, searchTerm, statusFilter, categoryFilter]);
+
   const handleExport = () => {
-    if (!products || products.length === 0) {
+    if (!filteredProducts || filteredProducts.length === 0) {
       toast.error("내보낼 데이터가 없습니다.");
       return;
     }
 
-    const headers = ["제품코드", "제품명", "설명", "카테고리", "BOM항목수", "상태"];
-    const rows = products.map(product => [
-      product.productCode,
-      product.productName || "",
-      product.description || "",
-      product.category || "",
-      product.bomItems.length.toString(),
-      product.isActive ? "활성" : "비활성",
-    ]);
+    try {
+      const headers = "제품코드,제품명,설명,카테고리,BOM항목수,상태";
+      const rows = filteredProducts.map(p => {
+        const code = String(p.productCode || "").replace(/"/g, '""');
+        const name = String(p.productName || "").replace(/"/g, '""');
+        const desc = String(p.description || "").replace(/"/g, '""');
+        const cat = String(p.category || "").replace(/"/g, '""');
+        const bom = Array.isArray(p.bomItems) ? p.bomItems.length : 0;
+        const status = p.isActive ? "활성" : "비활성";
+        return `"${code}","${name}","${desc}","${cat}","${bom}","${status}"`;
+      });
+      const csv = "\uFEFF" + headers + "\n" + rows.join("\n");
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `제품목록_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `제품목록_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    toast.success("파일이 다운로드되었습니다.");
+      toast.success("파일이 다운로드되었습니다.");
+    } catch (e) {
+      console.error("Export error:", e);
+      toast.error("내보내기 중 오류가 발생했습니다.");
+    }
   };
 
-  const filteredProducts = products?.filter((product) => {
-    const matchesSearch =
-      product.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && product.isActive) ||
-      (statusFilter === "inactive" && !product.isActive);
-    const matchesCategory =
-      !categoryFilter || product.category?.toLowerCase().includes(categoryFilter.toLowerCase());
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
+  const categories = useMemo(() => {
+    if (!products) return [];
+    return [...new Set(products.map(p => p.category).filter(Boolean))] as string[];
+  }, [products]);
 
-  const categories = [...new Set(products?.map(p => p.category).filter(Boolean))];
+  const hasActiveFilters = statusFilter !== "all" || categoryFilter !== "";
+  const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (categoryFilter ? 1 : 0);
 
-  const activeFilterCount = [
-    statusFilter !== "all" ? 1 : 0,
-    categoryFilter ? 1 : 0,
-  ].reduce((a, b) => a + b, 0);
+  const clearFilters = () => {
+    setStatusFilter("all");
+    setCategoryFilter("");
+  };
 
   // TanStack Table 컬럼 정의
   const columns = useMemo(
@@ -370,7 +403,7 @@ export default function ProductsContent() {
           </span>
         ),
       }),
-      columnHelper.accessor((row) => row.bomItems.length, {
+      columnHelper.accessor((row) => Array.isArray(row.bomItems) ? row.bomItems.length : 0, {
         id: "bomCount",
         header: "BOM",
         size: 80,
@@ -379,7 +412,7 @@ export default function ProductsContent() {
         cell: (info) => (
           <div className="flex items-center justify-center gap-1">
             <Layers className="w-4 h-4 text-[var(--text-muted)]" />
-            <span className="text-sm tabular-nums">{info.getValue()}</span>
+            <span className="text-sm tabular-nums">{info.getValue().toLocaleString()}</span>
           </div>
         ),
       }),
@@ -487,24 +520,76 @@ export default function ProductsContent() {
             />
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowFilterPanel(!showFilterPanel)}
-              className={`btn-secondary flex items-center gap-2 ${activeFilterCount > 0 ? "ring-2 ring-[var(--primary)]" : ""}`}
-            >
-              <Filter className="w-4 h-4" />
-              필터
-              {activeFilterCount > 0 && (
-                <span className="bg-[var(--primary)] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
+              </button>
+
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
+                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={clearFilters}
+                        className="text-xs text-[var(--primary-500)] hover:underline"
+                      >
+                        초기화
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">
+                      카테고리
+                    </label>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="">전체</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="px-4 py-2">
+                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">
+                      상태
+                    </label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
+                    >
+                      <option value="all">전체</option>
+                      <option value="active">활성</option>
+                      <option value="inactive">비활성</option>
+                    </select>
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
+
             {can("master-data", "export") && (
               <button onClick={handleExport} className="btn-secondary">
                 <Download className="w-4 h-4" />
                 내보내기
               </button>
             )}
+
             {can("master-data", "import") && (
               <button onClick={() => setShowUploadModal(true)} className="btn-secondary">
                 <Upload className="w-4 h-4" />
@@ -513,49 +598,6 @@ export default function ProductsContent() {
             )}
           </div>
         </div>
-
-        {showFilterPanel && (
-          <div className="mt-4 pt-4 border-t border-[var(--glass-border)]">
-            <div className="flex flex-wrap gap-4">
-              <div className="min-w-[150px]">
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">상태</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-                  className="input w-full"
-                >
-                  <option value="all">전체</option>
-                  <option value="active">활성</option>
-                  <option value="inactive">비활성</option>
-                </select>
-              </div>
-              <div className="min-w-[150px]">
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">카테고리</label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="input w-full"
-                >
-                  <option value="">전체</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat || ""}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              {activeFilterCount > 0 && (
-                <div className="flex items-end">
-                  <button
-                    onClick={() => { setStatusFilter("all"); setCategoryFilter(""); }}
-                    className="btn-secondary text-sm flex items-center gap-1"
-                  >
-                    <X className="w-3 h-3" />
-                    필터 초기화
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Table - TanStack Table */}
@@ -654,15 +696,17 @@ export default function ProductsContent() {
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 
-      <MultiSheetUpload
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        onUpload={handleBulkUpload}
-        title="제품 및 BOM 대량 등록"
-        sheets={productUploadSheets}
-        templateName="제품_BOM_업로드"
-        isLoading={isUploading}
-      />
+      {showUploadModal && (
+        <MultiSheetUpload
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onUpload={handleBulkUpload}
+          title="제품 및 BOM 대량 등록"
+          sheets={productUploadSheets}
+          templateName="제품_BOM_업로드"
+          isLoading={isUploading}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={showDeleteDialog}

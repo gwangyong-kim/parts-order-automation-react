@@ -280,7 +280,7 @@ export default function AuditPage() {
         minSize: 70,
         maxSize: 100,
         cell: (info) => (
-          <span className="tabular-nums text-right block">{info.getValue()}</span>
+          <span className="tabular-nums text-right block">{info.getValue().toLocaleString()}</span>
         ),
       }),
       // 일치
@@ -291,7 +291,7 @@ export default function AuditPage() {
         maxSize: 90,
         cell: (info) => (
           <span className="tabular-nums text-right block text-[var(--success)]">
-            {info.getValue()}
+            {info.getValue().toLocaleString()}
           </span>
         ),
       }),
@@ -305,7 +305,7 @@ export default function AuditPage() {
           const value = info.getValue();
           return value > 0 ? (
             <span className="text-[var(--danger)] font-medium tabular-nums text-right block">
-              {value}
+              {value.toLocaleString()}
             </span>
           ) : (
             <span className="text-[var(--text-muted)] tabular-nums text-right block">0</span>

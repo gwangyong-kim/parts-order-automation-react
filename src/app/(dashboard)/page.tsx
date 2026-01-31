@@ -290,12 +290,12 @@ export default async function DashboardPage() {
                       {part.partName}
                     </p>
                     <p className="text-xs text-[var(--text-muted)] tabular-nums">
-                      안전재고: {part.safetyStock}
+                      안전재고: {part.safetyStock.toLocaleString()}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-[var(--danger-600)] tabular-nums">
-                      {part.currentQty}
+                      {part.currentQty.toLocaleString()}
                     </p>
                     <span className="badge badge-danger text-xs">부족</span>
                   </div>
@@ -369,7 +369,7 @@ export default async function DashboardPage() {
                             : "text-[var(--danger-600)]"
                         }`}
                       >
-                        {isPositive ? "+" : ""}{changeAmount}
+                        {isPositive ? "+" : ""}{changeAmount.toLocaleString()}
                       </p>
                       <p className="text-xs text-[var(--text-muted)]">
                         {new Date(tx.createdAt).toLocaleDateString("ko-KR")}

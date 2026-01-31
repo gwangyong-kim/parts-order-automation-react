@@ -47,7 +47,7 @@ npm run db:seed
 npm run dev
 ```
 
-http://localhost:3000 에서 확인
+http://localhost:4000에서 확인
 
 ### Docker 배포
 

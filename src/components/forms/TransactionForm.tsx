@@ -181,7 +181,7 @@ export default function TransactionForm({
           />
           {isEditMode && initialData && (
             <div className="p-3 rounded-lg bg-[var(--info)]/10 text-sm text-[var(--text-secondary)]">
-              <p>현재 기록: {initialData.beforeQty} → {initialData.afterQty}</p>
+              <p>현재 기록: {initialData.beforeQty.toLocaleString()} → {initialData.afterQty.toLocaleString()}</p>
               <p className="text-xs mt-1 text-[var(--text-muted)]">
                 수정 시 재고가 자동으로 재계산됩니다.
               </p>

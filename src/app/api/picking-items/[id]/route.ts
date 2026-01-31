@@ -11,13 +11,65 @@ export async function PUT(request: Request, { params }: Params) {
     const body = await request.json();
     const itemId = parseInt(id);
 
-    const updateData: Record<string, unknown> = {};
+    // Get current item info for inventory operations
+    const currentItem = await prisma.pickingItem.findUnique({
+      where: { id: itemId },
+      include: { pickingTask: true },
+    });
 
-    // Handle pick action
+    if (!currentItem) {
+      return NextResponse.json({ error: "Picking item not found" }, { status: 404 });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    let outboundTransaction = null;
+    let inboundTransaction = null;
+
+    // Handle pick action - 즉시 출고 처리
     if (body.action === "pick") {
+      const pickedQty = body.pickedQty ?? currentItem.requiredQty;
       updateData.status = "PICKED";
-      updateData.pickedQty = body.pickedQty ?? body.requiredQty;
+      updateData.pickedQty = pickedQty;
       updateData.verifiedAt = new Date();
+
+      // 재고 차감 (출고)
+      const inventory = await prisma.inventory.findUnique({
+        where: { partId: currentItem.partId },
+      });
+
+      if (inventory && pickedQty > 0) {
+        const beforeQty = inventory.currentQty;
+        const afterQty = beforeQty - pickedQty;
+
+        // Generate transaction code
+        const txCount = await prisma.transaction.count();
+        const transactionCode = `TRX-${Date.now()}-${txCount + 1}`;
+
+        // Create outbound transaction
+        outboundTransaction = await prisma.transaction.create({
+          data: {
+            transactionCode,
+            transactionType: "OUTBOUND",
+            partId: currentItem.partId,
+            quantity: pickedQty,
+            beforeQty,
+            afterQty,
+            referenceType: "PICK",
+            referenceId: currentItem.pickingTask.taskCode,
+            notes: `피킹 출고 - ${currentItem.pickingTask.taskCode}`,
+            performedBy: body.performedBy || currentItem.pickingTask.assignedTo,
+          },
+        });
+
+        // Update inventory
+        await prisma.inventory.update({
+          where: { partId: currentItem.partId },
+          data: {
+            currentQty: afterQty,
+            lastOutboundDate: new Date(),
+          },
+        });
+      }
     }
 
     // Handle scan action
@@ -46,8 +98,48 @@ export async function PUT(request: Request, { params }: Params) {
       updateData.notes = body.notes ?? null;
     }
 
-    // Handle revert-pick action (PICKED -> PENDING)
+    // Handle revert-pick action (PICKED -> PENDING) - 출고 취소 처리
     if (body.action === "revert-pick") {
+      // 이미 피킹된 수량이 있으면 재고 복원
+      if (currentItem.status === "PICKED" && currentItem.pickedQty > 0) {
+        const inventory = await prisma.inventory.findUnique({
+          where: { partId: currentItem.partId },
+        });
+
+        if (inventory) {
+          const beforeQty = inventory.currentQty;
+          const afterQty = beforeQty + currentItem.pickedQty;
+
+          // Generate transaction code
+          const txCount = await prisma.transaction.count();
+          const transactionCode = `TRX-${Date.now()}-${txCount + 1}`;
+
+          // Create inbound (reversal) transaction
+          inboundTransaction = await prisma.transaction.create({
+            data: {
+              transactionCode,
+              transactionType: "INBOUND",
+              partId: currentItem.partId,
+              quantity: currentItem.pickedQty,
+              beforeQty,
+              afterQty,
+              referenceType: "PICK_REVERT",
+              referenceId: currentItem.pickingTask.taskCode,
+              notes: `피킹 취소 - ${currentItem.pickingTask.taskCode}`,
+              performedBy: body.performedBy || currentItem.pickingTask.assignedTo,
+            },
+          });
+
+          // Restore inventory
+          await prisma.inventory.update({
+            where: { partId: currentItem.partId },
+            data: {
+              currentQty: afterQty,
+            },
+          });
+        }
+      }
+
       updateData.status = "PENDING";
       updateData.pickedQty = 0;
       updateData.scannedAt = null;
@@ -89,7 +181,11 @@ export async function PUT(request: Request, { params }: Params) {
       data: { pickedItems: pickedCount },
     });
 
-    return NextResponse.json(item);
+    return NextResponse.json({
+      ...item,
+      outboundTransaction,
+      inboundTransaction,
+    });
   } catch (error) {
     console.error("Failed to update picking item:", error);
     return NextResponse.json(

@@ -391,10 +391,10 @@ export default function OrderDetailPage({
             <div>
               <p className="text-sm text-[var(--text-muted)]">발주금액</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {order.totalAmount >= 1000000
-                  ? `₩${(order.totalAmount / 1000000).toFixed(1)}M`
-                  : order.totalAmount >= 1000
-                  ? `₩${(order.totalAmount / 1000).toFixed(0)}K`
+                {order.totalAmount >= 100000000
+                  ? `₩${(order.totalAmount / 100000000).toFixed(1)}억`
+                  : order.totalAmount >= 10000
+                  ? `₩${(order.totalAmount / 10000).toFixed(0)}만`
                   : `₩${order.totalAmount.toLocaleString()}`}
               </p>
             </div>

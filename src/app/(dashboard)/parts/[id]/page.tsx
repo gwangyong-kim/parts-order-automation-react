@@ -167,7 +167,7 @@ export default function PartDetailPage({
             <div>
               <p className="text-sm text-[var(--text-muted)]">현재 재고</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {inventory?.currentQty ?? 0}
+                {(inventory?.currentQty ?? 0).toLocaleString()}
                 <span className="text-sm font-normal ml-1">{part.unit}</span>
               </p>
             </div>
@@ -197,7 +197,7 @@ export default function PartDetailPage({
             <div>
               <p className="text-sm text-[var(--text-muted)]">가용 재고</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {inventory ? inventory.currentQty - inventory.reservedQty : 0}
+                {(inventory ? inventory.currentQty - inventory.reservedQty : 0).toLocaleString()}
                 <span className="text-sm font-normal ml-1">{part.unit}</span>
               </p>
             </div>
@@ -207,7 +207,7 @@ export default function PartDetailPage({
           </div>
           {inventory && inventory.reservedQty > 0 && (
             <p className="mt-2 text-xs text-[var(--text-muted)]">
-              예약: {inventory.reservedQty} {part.unit}
+              예약: {inventory.reservedQty.toLocaleString()} {part.unit}
             </p>
           )}
         </div>
@@ -218,7 +218,7 @@ export default function PartDetailPage({
             <div>
               <p className="text-sm text-[var(--text-muted)]">안전 재고</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {part.safetyStock}
+                {part.safetyStock.toLocaleString()}
                 <span className="text-sm font-normal ml-1">{part.unit}</span>
               </p>
             </div>
@@ -234,7 +234,7 @@ export default function PartDetailPage({
             <div>
               <p className="text-sm text-[var(--text-muted)]">입고 예정</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">
-                {inventory?.incomingQty ?? 0}
+                {(inventory?.incomingQty ?? 0).toLocaleString()}
                 <span className="text-sm font-normal ml-1">{part.unit}</span>
               </p>
             </div>
@@ -309,7 +309,7 @@ export default function PartDetailPage({
                 <div>
                   <p className="text-sm text-[var(--text-muted)]">최소 발주량</p>
                   <p className="text-[var(--text-primary)]">
-                    {part.minOrderQty} {part.unit}
+                    {part.minOrderQty.toLocaleString()} {part.unit}
                   </p>
                 </div>
               </div>
@@ -401,14 +401,14 @@ export default function PartDetailPage({
                               : tx.transactionType === "OUTBOUND"
                               ? "-"
                               : ""}
-                            {tx.quantity}
+                            {tx.quantity.toLocaleString()}
                           </span>
                         </td>
                         <td className="px-3 py-3 text-right text-[var(--text-secondary)] tabular-nums">
-                          {tx.beforeQty}
+                          {tx.beforeQty.toLocaleString()}
                         </td>
                         <td className="px-3 py-3 text-right font-medium tabular-nums">
-                          {tx.afterQty}
+                          {tx.afterQty.toLocaleString()}
                         </td>
                         <td className="px-3 py-3 text-[var(--text-secondary)]">
                           {tx.referenceType

@@ -221,6 +221,9 @@ export default function SalesOrderDetailPage({
   } = useQuery({
     queryKey: ["sales-order", id],
     queryFn: () => fetchSalesOrder(id),
+    refetchOnMount: "always",      // 페이지 진입 시 항상 최신 데이터 fetch
+    refetchOnWindowFocus: true,    // 창 포커스 시 refetch
+    staleTime: 0,                  // 항상 stale 상태로 취급
   });
 
   const { data: pickingTask } = useQuery({
@@ -268,12 +271,22 @@ export default function SalesOrderDetailPage({
         orderDate: new Date().toISOString(),
         notes: `SO ${order?.orderCode}에서 자동 생성`,
       }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["sales-order", id] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+
+      // 발주 후 MRP 재계산 실행
+      try {
+        await fetch("/api/mrp/calculate", { method: "POST" });
+        queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
+      } catch {
+        // MRP 재계산 실패해도 발주는 성공한 것으로 처리
+        console.error("MRP 재계산 실패");
+      }
+
       const orderCount = result.data?.purchaseOrders?.length || 0;
       toast.success(
-        `발주 ${orderCount}건이 생성되었습니다. (총 ${result.data?.totalItems}개 품목)`
+        `발주 ${orderCount.toLocaleString()}건이 생성되었습니다. (총 ${(result.data?.totalItems || 0).toLocaleString()}개 품목)`
       );
       setSelectedParts(new Set());
     },

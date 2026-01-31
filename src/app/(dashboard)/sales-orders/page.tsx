@@ -245,6 +245,7 @@ export default function SalesOrdersPage() {
     mutationFn: createSalesOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("수주가 등록되었습니다.");
       setShowFormModal(false);
     },
@@ -258,6 +259,7 @@ export default function SalesOrdersPage() {
       updateSalesOrder(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("수주가 수정되었습니다.");
       setShowFormModal(false);
       setSelectedOrder(null);
@@ -271,6 +273,7 @@ export default function SalesOrdersPage() {
     mutationFn: deleteSalesOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("수주가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedOrder(null);
@@ -418,11 +421,11 @@ export default function SalesOrdersPage() {
                   <span className="font-medium truncate" title={item.productCode || item.productName || `제품${item.productId}`}>
                     {item.productCode || item.productName || `제품${item.productId}`}
                   </span>
-                  <span className="text-[var(--text-muted)] flex-shrink-0">x{item.orderQty}</span>
+                  <span className="text-[var(--text-muted)] flex-shrink-0">x{item.orderQty.toLocaleString()}</span>
                 </div>
               ))}
               {items.length > 2 && (
-                <span className="text-xs text-[var(--text-muted)]">외 {items.length - 2}개</span>
+                <span className="text-xs text-[var(--text-muted)]">외 {(items.length - 2).toLocaleString()}개</span>
               )}
             </div>
           );

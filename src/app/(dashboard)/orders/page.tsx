@@ -194,6 +194,8 @@ export default function OrdersPage() {
     mutationFn: createOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("발주가 생성되었습니다.");
       setShowFormModal(false);
     },
@@ -207,6 +209,8 @@ export default function OrdersPage() {
       updateOrder(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("발주가 수정되었습니다.");
       setShowFormModal(false);
       setSelectedOrder(null);
@@ -218,8 +222,18 @@ export default function OrdersPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteOrder,
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-order"] });  // 모든 수주 상세 무효화
+
+      // 발주 삭제 후 MRP 재계산 실행
+      try {
+        await fetch("/api/mrp/calculate", { method: "POST" });
+      } catch {
+        console.error("MRP 재계산 실패");
+      }
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
+
       toast.success("발주가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedOrder(null);
@@ -381,7 +395,7 @@ export default function OrdersPage() {
         minSize: 60,
         maxSize: 100,
         cell: (info) => (
-          <span className="tabular-nums">{info.getValue()}개</span>
+          <span className="tabular-nums">{info.getValue().toLocaleString()}개</span>
         ),
       }),
       // 금액

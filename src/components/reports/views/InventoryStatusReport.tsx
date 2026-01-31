@@ -193,13 +193,13 @@ export default function InventoryStatusReport({
               <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/10">
                 <span className="text-[var(--text-secondary)]">재고 부족</span>
                 <span className="text-red-400 font-bold">
-                  {data.summary.lowStockCount}
+                  {data.summary.lowStockCount.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
                 <span className="text-[var(--text-secondary)]">과재고</span>
                 <span className="text-amber-400 font-bold">
-                  {data.summary.overStockCount}
+                  {data.summary.overStockCount.toLocaleString()}
                 </span>
               </div>
             </div>

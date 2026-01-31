@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -55,6 +56,7 @@ const columnHelper = createColumnHelper<InventoryItem>();
 
 export default function InventoryPage() {
   const toast = useToast();
+  const router = useRouter();
   const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -66,6 +68,8 @@ export default function InventoryPage() {
   const { data: inventory, isLoading, error } = useQuery({
     queryKey: ["inventory"],
     queryFn: fetchInventory,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -497,7 +501,8 @@ export default function InventoryPage() {
                   return (
                     <tr
                       key={row.id}
-                      className={`hover:bg-[var(--glass-bg)] transition-colors ${
+                      onClick={() => router.push(`/parts/${row.original.part.id}`)}
+                      className={`hover:bg-[var(--glass-bg)] transition-colors cursor-pointer ${
                         isLowStock ? "bg-[var(--danger)]/5" : ""
                       }`}
                     >

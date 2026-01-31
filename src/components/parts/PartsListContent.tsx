@@ -190,6 +190,8 @@ export default function PartsListContent() {
     mutationFn: createPart,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("파츠가 등록되었습니다.");
       setShowFormModal(false);
     },
@@ -203,6 +205,8 @@ export default function PartsListContent() {
       updatePart(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("파츠가 수정되었습니다.");
       setShowFormModal(false);
       setSelectedPart(null);
@@ -216,6 +220,8 @@ export default function PartsListContent() {
     mutationFn: deletePart,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success("파츠가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedPart(null);
@@ -269,6 +275,8 @@ export default function PartsListContent() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
       toast.success(result.message);
       setShowUploadModal(false);
     } catch (error) {
@@ -372,7 +380,7 @@ export default function PartsListContent() {
         maxSize: 120,
         cell: (info) => (
           <span className="text-right tabular-nums block">
-            {info.getValue()}
+            {info.getValue().toLocaleString()}
           </span>
         ),
       }),

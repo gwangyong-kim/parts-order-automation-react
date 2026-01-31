@@ -154,6 +154,8 @@ export default function SuppliersContent() {
     mutationFn: createSupplier,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("공급업체가 등록되었습니다.");
       setShowFormModal(false);
     },
@@ -167,6 +169,8 @@ export default function SuppliersContent() {
       updateSupplier(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("공급업체가 수정되었습니다.");
       setShowFormModal(false);
       setSelectedSupplier(null);
@@ -180,6 +184,8 @@ export default function SuppliersContent() {
     mutationFn: deleteSupplier,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["parts"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("공급업체가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedSupplier(null);

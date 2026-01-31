@@ -336,7 +336,7 @@ export default function ProductDetailPage({
                           {item.part.partName}
                         </td>
                         <td className="px-3 py-3 text-right tabular-nums">
-                          {item.quantityPerUnit}
+                          {item.quantityPerUnit.toLocaleString()}
                           <span className="text-[var(--text-muted)] ml-1">
                             {item.part.unit}
                           </span>
@@ -444,7 +444,7 @@ export default function ProductDetailPage({
                         {item.salesOrder.project || "-"}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">
-                        {item.orderQty}
+                        {item.orderQty.toLocaleString()}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">
                         <span
@@ -454,7 +454,7 @@ export default function ProductDetailPage({
                               : "text-[var(--text-primary)]"
                           }
                         >
-                          {item.producedQty}
+                          {item.producedQty.toLocaleString()}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-center">

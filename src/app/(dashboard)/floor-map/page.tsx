@@ -598,7 +598,7 @@ export default function FloorMapPage() {
                     <Square className={`w-5 h-5 ${isScanned ? "text-[var(--text-muted)]" : "text-[var(--gray-300)]"}`} />
                   )}
                   <span className={`text-sm font-medium ${isVerified ? "text-[var(--success-600)]" : isScanned ? "" : "text-[var(--text-muted)]"}`}>
-                    수량 확인 ({currentItem.requiredQty} {currentItem.part?.unit})
+                    수량 확인 ({currentItem.requiredQty.toLocaleString()} {currentItem.part?.unit})
                   </span>
                 </button>
               </div>

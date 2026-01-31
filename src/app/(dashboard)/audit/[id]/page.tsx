@@ -458,7 +458,7 @@ export default function AuditDetailPage({
                       <td className="table-cell text-[var(--text-secondary)]">
                         {item.part.storageLocation || "-"}
                       </td>
-                      <td className="table-cell text-right tabular-nums">{item.systemQty}</td>
+                      <td className="table-cell text-right tabular-nums">{item.systemQty.toLocaleString()}</td>
                       <td className="table-cell text-right">
                         {isEditing ? (
                           <input
@@ -473,7 +473,7 @@ export default function AuditDetailPage({
                           />
                         ) : (
                           <span className="tabular-nums">
-                            {item.countedQty !== null ? item.countedQty : "-"}
+                            {item.countedQty !== null ? item.countedQty.toLocaleString() : "-"}
                           </span>
                         )}
                       </td>
@@ -487,7 +487,7 @@ export default function AuditDetailPage({
                             }`}
                           >
                             {item.discrepancy !== null && item.discrepancy > 0 ? "+" : ""}
-                            {item.discrepancy}
+                            {item.discrepancy !== null ? item.discrepancy.toLocaleString() : "-"}
                           </span>
                         ) : (
                           "-"
@@ -721,8 +721,8 @@ export default function AuditDetailPage({
                         >
                           <td className="p-2 font-mono text-xs">{item.part.partCode}</td>
                           <td className="p-2">{item.part.partName}</td>
-                          <td className="p-2 text-right tabular-nums">{item.systemQty}</td>
-                          <td className="p-2 text-right tabular-nums">{item.countedQty}</td>
+                          <td className="p-2 text-right tabular-nums">{item.systemQty.toLocaleString()}</td>
+                          <td className="p-2 text-right tabular-nums">{item.countedQty?.toLocaleString()}</td>
                           <td className="p-2 text-right tabular-nums">
                             <span
                               className={`flex items-center justify-end gap-1 ${
@@ -737,7 +737,7 @@ export default function AuditDetailPage({
                                 <TrendingDown className="w-3 h-3" />
                               )}
                               {item.discrepancy !== null && item.discrepancy > 0 ? "+" : ""}
-                              {item.discrepancy}
+                              {item.discrepancy?.toLocaleString()}
                             </span>
                           </td>
                         </tr>

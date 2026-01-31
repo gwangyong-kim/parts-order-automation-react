@@ -160,6 +160,8 @@ export default function TransactionsPage() {
   const { data: transactions, isLoading, error } = useQuery({
     queryKey: ["transactions"],
     queryFn: fetchTransactions,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   useEffect(() => {

@@ -19,6 +19,7 @@ import {
   Square,
   ExternalLink,
   ArrowLeft,
+  RotateCcw,
 } from "lucide-react";
 import WarehouseMap from "@/components/warehouse/WarehouseMap";
 import type { WarehouseLayout, LocationLookup, PickingTask, PickingItem, PickingLocationInfo } from "@/types/warehouse";
@@ -144,6 +145,10 @@ export default function WarehouseMapContent() {
       updatePickingItem(itemId, action, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["picking-tasks-active"] });
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["active-picking-data"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
   });
 
@@ -152,6 +157,8 @@ export default function WarehouseMapContent() {
     onSuccess: (updatedTask) => {
       setActiveTask(updatedTask);
       queryClient.invalidateQueries({ queryKey: ["picking-tasks-active"] });
+      queryClient.invalidateQueries({ queryKey: ["picking-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["active-picking-data"] });
     },
   });
 
@@ -568,7 +575,7 @@ export default function WarehouseMapContent() {
                     <Square className={`w-5 h-5 ${isScanned ? "text-[var(--text-muted)]" : "text-[var(--gray-300)]"}`} />
                   )}
                   <span className={`text-sm font-medium ${isVerified ? "text-[var(--success-600)]" : isScanned ? "" : "text-[var(--text-muted)]"}`}>
-                    수량 확인 ({currentItem.requiredQty} {currentItem.part?.unit})
+                    수량 확인 ({currentItem.requiredQty.toLocaleString()} {currentItem.part?.unit})
                   </span>
                 </button>
               </div>
@@ -817,6 +824,11 @@ export default function WarehouseMapContent() {
                                 {task.status === "IN_PROGRESS" ? "진행" : "대기"}
                               </span>
                             </div>
+                            {task.salesOrder?.project && (
+                              <p className={`text-[10px] font-medium truncate mb-0.5 ${activeTask?.id === task.id ? "text-white/90" : "text-[var(--text-primary)]"}`}>
+                                {task.salesOrder.project}
+                              </p>
+                            )}
                             <div className="flex items-center justify-between">
                               <span className={`text-[10px] ${activeTask?.id === task.id ? "text-white/80" : "text-[var(--text-muted)]"}`}>
                                 {task.pickedItems}/{task.totalItems} 항목
@@ -863,6 +875,7 @@ export default function WarehouseMapContent() {
                   <th className="text-left py-2 px-3 text-[10px] font-medium text-[var(--text-muted)] uppercase">Item Description</th>
                   <th className="text-center py-2 px-3 text-[10px] font-medium text-[var(--text-muted)] uppercase">Pick Qty</th>
                   <th className="text-center py-2 px-3 text-[10px] font-medium text-[var(--text-muted)] uppercase">Status</th>
+                  <th className="text-center py-2 px-3 text-[10px] font-medium text-[var(--text-muted)] uppercase">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -906,6 +919,21 @@ export default function WarehouseMapContent() {
                         <span className="px-2 py-0.5 bg-[var(--gray-100)] text-[var(--text-muted)] text-[10px] rounded-full">
                           PENDING
                         </span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      {(item.status === "PICKED" || item.status === "SKIPPED") && (
+                        <button
+                          onClick={() => {
+                            const action = item.status === "PICKED" ? "revert-pick" : "revert-skip";
+                            pickItemMutation.mutate({ itemId: item.id, action });
+                          }}
+                          disabled={pickItemMutation.isPending}
+                          className="p-1.5 text-[var(--warning)] hover:bg-[var(--warning)]/10 rounded-lg transition-colors"
+                          title={item.status === "PICKED" ? "피킹 취소 (재고 복원)" : "스킵 취소"}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </td>
                   </tr>

@@ -129,6 +129,9 @@ export default function MrpPage() {
   const { data: results, isLoading, error } = useQuery({
     queryKey: ["mrp-results"],
     queryFn: fetchMrpResults,
+    refetchOnMount: "always",      // 페이지 진입 시 항상 최신 데이터 fetch
+    refetchOnWindowFocus: true,    // 창 포커스 시 refetch
+    staleTime: 0,                  // 항상 stale 상태로 취급
   });
 
   const calculateMutation = useMutation({
@@ -160,9 +163,17 @@ export default function MrpPage() {
         notes: orderNotes || undefined,
       });
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+
+      // 발주 후 MRP 재계산 실행
+      try {
+        await fetch("/api/mrp/calculate", { method: "POST" });
+      } catch {
+        console.error("MRP 재계산 실패");
+      }
       queryClient.invalidateQueries({ queryKey: ["mrp-results"] });
+
       setSelectedIds(new Set());
       setShowOrderModal(false);
       setOrderNotes("");

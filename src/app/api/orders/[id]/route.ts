@@ -97,15 +97,57 @@ export async function DELETE(request: Request, { params }: Params) {
     }
 
     const { id } = await params;
+    const orderId = parseInt(id);
+
+    // 삭제 전에 발주 정보 조회 (MrpResult 복원용)
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          select: { partId: true },
+        },
+      },
+    });
+
+    if (!order) {
+      throw notFound("발주");
+    }
+
+    const partIds = order.items.map((item) => item.partId);
 
     // Delete associated items first, then the order
     await prisma.orderItem.deleteMany({
-      where: { orderId: parseInt(id) },
+      where: { orderId },
     });
 
     await prisma.order.delete({
-      where: { id: parseInt(id) },
+      where: { id: orderId },
     });
+
+    // MrpResult 상태를 PENDING으로 복원
+    // 해당 품목의 다른 ORDERED 발주가 없는 경우에만 복원
+    for (const partId of partIds) {
+      // 해당 품목에 대해 다른 활성 발주가 있는지 확인
+      const otherActiveOrder = await prisma.orderItem.findFirst({
+        where: {
+          partId,
+          order: {
+            status: { in: ["DRAFT", "APPROVED", "ORDERED"] },
+          },
+        },
+      });
+
+      // 다른 활성 발주가 없으면 MrpResult를 PENDING으로 복원
+      if (!otherActiveOrder) {
+        await prisma.mrpResult.updateMany({
+          where: {
+            partId,
+            status: "ORDERED",
+          },
+          data: { status: "PENDING" },
+        });
+      }
+    }
 
     return deletedResponse("발주가 삭제되었습니다.");
   } catch (error) {

@@ -68,6 +68,7 @@ export async function GET() {
       urgency: result.suggestedOrderDate
         ? getUrgencyLevel(result.suggestedOrderDate)
         : "LOW",
+      status: result.status,  // 발주 상태 (PENDING, ORDERED 등)
       calculatedAt: result.createdAt,
     }));
 

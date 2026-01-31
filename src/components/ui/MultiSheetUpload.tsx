@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, X, Info, Layers } from "lucide-react";
-import * as XLSX from "xlsx";
 import Modal from "./Modal";
 
 interface FieldGuide {
@@ -61,6 +60,7 @@ export default function MultiSheetUpload({
     setErrors([]);
 
     try {
+      const XLSX = await import("xlsx");
       const arrayBuffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
@@ -98,7 +98,8 @@ export default function MultiSheetUpload({
     }
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await import("xlsx");
     const workbook = XLSX.utils.book_new();
 
     for (const sheet of sheets) {

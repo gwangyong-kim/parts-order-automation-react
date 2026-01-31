@@ -52,11 +52,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // 품목 정보 조회 (공급업체 포함)
+    // 품목 정보 조회 (공급업체, 재고 포함)
     const partIds = items.map((item) => item.partId);
     const parts = await prisma.part.findMany({
       where: { id: { in: partIds } },
-      include: { supplier: true },
+      include: { supplier: true, inventory: true },
     });
 
     // 품목 맵 생성
@@ -70,13 +70,10 @@ export async function POST(request: Request) {
       ? [...new Set([salesOrderId, ...itemSalesOrderIds])]
       : [...new Set(itemSalesOrderIds)];
 
-    // 수주 ID 목록 수집 (중복 제거)
-    const salesOrderIds = [...new Set(items.map((item) => item.salesOrderId).filter((id): id is number => id != null))];
-
-    // 수주 정보 일괄 조회
-    const salesOrders = salesOrderIds.length > 0
+    // 수주 정보 일괄 조회 (allSalesOrderIds 사용 - request body의 salesOrderId도 포함)
+    const salesOrders = allSalesOrderIds.length > 0
       ? await prisma.salesOrder.findMany({
-          where: { id: { in: salesOrderIds } },
+          where: { id: { in: allSalesOrderIds } },
           select: { id: true, orderCode: true, project: true },
         })
       : [];
@@ -218,16 +215,51 @@ export async function POST(request: Request) {
       });
     }
 
-    // MrpResult 상태 업데이트: 발주된 항목은 ORDERED로 변경
-    if (allSalesOrderIds.length > 0) {
-      await prisma.mrpResult.updateMany({
+    // MrpResult 상태 업데이트/생성: 발주된 항목은 ORDERED로 변경
+    for (const item of items) {
+      const soId = item.salesOrderId ?? salesOrderId ?? null;
+
+      // 해당 조합의 모든 MrpResult를 ORDERED로 업데이트
+      const updateResult = await prisma.mrpResult.updateMany({
         where: {
-          salesOrderId: { in: allSalesOrderIds },
-          partId: { in: partIds },
+          partId: item.partId,
+          salesOrderId: soId,
           status: { not: "ORDERED" },
         },
         data: { status: "ORDERED" },
       });
+
+      // MrpResult가 없으면 새로 생성 (ORDERED 상태로)
+      if (updateResult.count === 0) {
+        // 이미 ORDERED인 것이 있는지 확인
+        const existingOrdered = await prisma.mrpResult.findFirst({
+          where: {
+            partId: item.partId,
+            salesOrderId: soId,
+            status: "ORDERED",
+          },
+        });
+
+        // 완전히 없는 경우에만 새로 생성
+        if (!existingOrdered) {
+          const part = partMap.get(item.partId);
+          await prisma.mrpResult.create({
+            data: {
+              partId: item.partId,
+              salesOrderId: soId,
+              calculationDate: new Date(),
+              grossRequirement: item.orderQty,
+              currentStock: part?.inventory?.currentQty ?? 0,
+              reservedQty: 0,
+              incomingQty: 0,
+              netRequirement: item.orderQty,
+              suggestedOrderQty: item.orderQty,
+              suggestedOrderDate: new Date(),
+              status: "ORDERED",
+            },
+          });
+        }
+      }
     }
 
     return NextResponse.json({

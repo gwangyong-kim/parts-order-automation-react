@@ -125,6 +125,7 @@ export default function WarehouseManagement() {
     mutationFn: createWarehouse,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success("창고가 등록되었습니다.");
       setShowForm(false);
       resetForm();
@@ -138,6 +139,7 @@ export default function WarehouseManagement() {
     mutationFn: deleteWarehouse,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success("창고가 삭제되었습니다.");
       setShowDeleteDialog(false);
       setSelectedWarehouse(null);
@@ -151,6 +153,7 @@ export default function WarehouseManagement() {
     mutationFn: bulkDeleteWarehouses,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success(`${data.count}개의 창고가 삭제되었습니다.`);
       setShowBulkDeleteDialog(false);
       setSelectedIds([]);
@@ -165,6 +168,7 @@ export default function WarehouseManagement() {
       updateWarehouse(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       toast.success("창고가 수정되었습니다.");
       setShowForm(false);
       setIsEditMode(false);
