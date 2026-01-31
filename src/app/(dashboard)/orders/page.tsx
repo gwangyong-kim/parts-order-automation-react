@@ -1,22 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-  createColumnHelper,
-  SortingState,
-  ColumnResizeMode,
-} from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import {
   ShoppingCart,
   Plus,
   Search,
-  Filter,
   Download,
   Upload,
   Edit2,
@@ -24,16 +15,16 @@ import {
   Eye,
   CheckCircle,
   Clock,
-  ChevronDown,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
+import { DataTable } from "@/components/ui/DataTable";
+import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import OrderForm from "@/components/forms/OrderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExcelUpload from "@/components/ui/ExcelUpload";
 import { useToast } from "@/components/ui/Toast";
 import { usePermission } from "@/hooks/usePermission";
+import { exportToCSV, formatDateKR } from "@/lib/export-utils";
+import { createApiService } from "@/lib/api-client";
 
 const orderUploadFields = [
   { name: "발주번호", description: "고유 발주 코드 (비워두면 자동생성: PO2501-0001)", required: false, type: "text", example: "PO2501-0001" },
@@ -62,39 +53,7 @@ interface Order {
   items: { id: number }[];
 }
 
-async function fetchOrders(): Promise<Order[]> {
-  const res = await fetch("/api/orders?pageSize=1000");
-  if (!res.ok) throw new Error("Failed to fetch orders");
-  const result = await res.json();
-  return result.data;
-}
-
-async function createOrder(data: Partial<Order>): Promise<Order> {
-  const res = await fetch("/api/orders", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to create order");
-  return res.json();
-}
-
-async function updateOrder(id: number, data: Partial<Order>): Promise<Order> {
-  const res = await fetch(`/api/orders/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to update order");
-  return res.json();
-}
-
-async function deleteOrder(id: number): Promise<void> {
-  const res = await fetch(`/api/orders/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error("Failed to delete order");
-}
+const ordersApi = createApiService<Order>("/api/orders", { paginated: true });
 
 const statusColors: Record<string, string> = {
   DRAFT: "badge-secondary",
@@ -126,72 +85,43 @@ export default function OrdersPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const filterRef = useRef<HTMLDivElement>(null);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ["orders"],
-    queryFn: fetchOrders,
+    queryFn: ordersApi.getAll,
   });
-
-  // 필터 드롭다운 외부 클릭시 닫기
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setShowFilterDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // 내보내기 기능
   const handleExport = () => {
-    if (!filteredOrders || filteredOrders.length === 0) {
-      toast.error("내보낼 데이터가 없습니다.");
-      return;
+    try {
+      exportToCSV({
+        data: filteredOrders,
+        headers: ["발주번호", "공급업체", "발주일", "입고예정일", "품목수", "금액", "상태"],
+        rowMapper: (order) => [
+          order.orderNumber,
+          order.supplier?.name || "",
+          formatDateKR(order.orderDate),
+          formatDateKR(order.expectedDate),
+          order.items.length,
+          order.totalAmount,
+          statusLabels[order.status] || order.status,
+        ],
+        filename: "orders",
+      });
+      toast.success("파일이 다운로드되었습니다.");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
-
-    const headers = ["발주번호", "공급업체", "발주일", "입고예정일", "품목수", "금액", "상태"];
-    const rows = filteredOrders.map((order) => [
-      order.orderNumber,
-      order.supplier?.name || "",
-      new Date(order.orderDate).toLocaleDateString("ko-KR"),
-      order.expectedDate ? new Date(order.expectedDate).toLocaleDateString("ko-KR") : "",
-      order.items.length,
-      order.totalAmount,
-      statusLabels[order.status] || order.status,
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `orders_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("파일이 다운로드되었습니다.");
   };
 
   // 필터 초기화
   const clearFilters = () => {
     setFilterStatus("all");
-    setShowFilterDropdown(false);
   };
 
-  const hasActiveFilters = filterStatus !== "all";
-
   const createMutation = useMutation({
-    mutationFn: createOrder,
+    mutationFn: ordersApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
@@ -206,7 +136,7 @@ export default function OrdersPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Order> }) =>
-      updateOrder(id, data),
+      ordersApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
@@ -221,7 +151,7 @@ export default function OrdersPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteOrder,
+    mutationFn: ordersApi.delete,
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-order"] });  // 모든 수주 상세 무효화
@@ -463,25 +393,6 @@ export default function OrdersPage() {
     []
   );
 
-  const table = useReactTable({
-    data: filteredOrders,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    columnResizeMode,
-    enableColumnResizing: true,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" role="status" aria-label="로딩 중" />
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="glass-card p-6 text-center">
@@ -579,49 +490,26 @@ export default function OrdersPage() {
             />
           </div>
           <div className="flex gap-2">
-            {/* 필터 드롭다운 */}
-            <div className="relative" ref={filterRef}>
-              <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
-              >
-                <Filter className="w-4 h-4" />
-                필터
-                {hasActiveFilters && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">1</span>
-                )}
-                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
-              </button>
-
-              {showFilterDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
-                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
-                    {hasActiveFilters && (
-                      <button onClick={clearFilters} className="text-xs text-[var(--primary-500)] hover:underline">
-                        초기화
-                      </button>
-                    )}
-                  </div>
-                  <div className="px-4 py-2">
-                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">상태</label>
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
-                    >
-                      <option value="all">전체</option>
-                      <option value="DRAFT">작성중</option>
-                      <option value="SUBMITTED">제출됨</option>
-                      <option value="APPROVED">승인됨</option>
-                      <option value="ORDERED">발주됨</option>
-                      <option value="RECEIVED">입고완료</option>
-                      <option value="CANCELLED">취소됨</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
+            <FilterDropdown
+              fields={[
+                {
+                  name: "status",
+                  label: "상태",
+                  value: filterStatus,
+                  onChange: setFilterStatus,
+                  options: [
+                    { value: "all", label: "전체" },
+                    { value: "DRAFT", label: "작성중" },
+                    { value: "SUBMITTED", label: "제출됨" },
+                    { value: "APPROVED", label: "승인됨" },
+                    { value: "ORDERED", label: "발주됨" },
+                    { value: "RECEIVED", label: "입고완료" },
+                    { value: "CANCELLED", label: "취소됨" },
+                  ],
+                },
+              ]}
+              onClear={clearFilters}
+            />
 
             {can("orders", "export") && (
               <button onClick={handleExport} className="btn-secondary">
@@ -639,101 +527,20 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table - Tanstack Table */}
-      <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
-            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
-                      style={{ width: header.getSize() }}
-                    >
-                      <div
-                        className={`flex items-center gap-1 ${
-                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
-                        }`}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <span className="text-[var(--text-muted)]">
-                            {header.column.getIsSorted() === "asc" ? (
-                              <ArrowUp className="w-3 h-3" />
-                            ) : header.column.getIsSorted() === "desc" ? (
-                              <ArrowDown className="w-3 h-3" />
-                            ) : (
-                              <ArrowUpDown className="w-3 h-3 opacity-50" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      {/* 컬럼 리사이즈 핸들 */}
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
-                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
-                          }`}
-                        />
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-[var(--glass-border)]">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length} className="px-6 py-12 text-center">
-                    <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
-                    <p className="text-[var(--text-muted)]">
-                      {searchTerm ? "검색 결과가 없습니다." : "등록된 발주가 없습니다."}
-                    </p>
-                    {!searchTerm && can("orders", "create") && (
-                      <button
-                        onClick={handleCreate}
-                        className="mt-4 text-[var(--primary)] hover:underline"
-                      >
-                        첫 번째 발주 생성하기
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="hover:bg-[var(--glass-bg)] transition-colors"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* 테이블 하단 안내 */}
-        {filteredOrders.length > 0 && (
-          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
-            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
-          </div>
-        )}
-      </div>
+      {/* Orders Table */}
+      <DataTable
+        data={filteredOrders}
+        columns={columns}
+        isLoading={isLoading}
+        searchTerm={searchTerm}
+        emptyState={{
+          icon: ShoppingCart,
+          message: "등록된 발주가 없습니다.",
+          searchMessage: "검색 결과가 없습니다.",
+          actionLabel: can("orders", "create") ? "첫 번째 발주 생성하기" : undefined,
+          onAction: can("orders", "create") ? handleCreate : undefined,
+        }}
+      />
 
       {/* Order Form Modal */}
       <OrderForm

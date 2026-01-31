@@ -1,24 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import Modal, { ModalFooter } from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
 import { Plus, Trash2 } from "lucide-react";
+import { productSchema, type ProductFormData } from "@/schemas/product.schema";
 
 interface Part {
   id: number;
   partCode: string;
   partName: string | null;
   unit: string;
-}
-
-interface BomItemInput {
-  partId: number;
-  quantityPerUnit: number;
-  lossRate: number;
-  notes: string;
 }
 
 interface Product {
@@ -43,10 +40,16 @@ interface ProductFormProps {
     productCode: string;
     productName: string | null;
     description: string | null;
-    bomItems: BomItemInput[];
+    bomItems: { partId: number; quantityPerUnit: number; lossRate: number; notes: string }[];
   }) => void;
   initialData?: Product | null;
   isLoading?: boolean;
+}
+
+async function fetchParts(): Promise<Part[]> {
+  const res = await fetch("/api/parts");
+  if (!res.ok) throw new Error("Failed to fetch parts");
+  return res.json();
 }
 
 export default function ProductForm({
@@ -56,141 +59,100 @@ export default function ProductForm({
   initialData,
   isLoading = false,
 }: ProductFormProps) {
-  const [formData, setFormData] = useState({
-    productCode: "",
-    productName: "",
-    description: "",
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+    setError,
+    clearErrors,
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      productCode: "",
+      productName: "",
+      description: "",
+      unit: "EA",
+      bomItems: [],
+    },
   });
-  const [bomItems, setBomItems] = useState<BomItemInput[]>([]);
-  const [parts, setParts] = useState<Part[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoadingParts, setIsLoadingParts] = useState(false);
 
-  // 파츠 목록 조회
-  useEffect(() => {
-    if (isOpen) {
-      setIsLoadingParts(true);
-      fetch("/api/parts")
-        .then((res) => res.json())
-        .then((data) => {
-          setParts(
-            data.map((p: { id: number; partCode: string; partName: string | null; unit: string }) => ({
-              id: p.id,
-              partCode: p.partCode,
-              partName: p.partName,
-              unit: p.unit,
-            }))
-          );
-        })
-        .catch(console.error)
-        .finally(() => setIsLoadingParts(false));
-    }
-  }, [isOpen]);
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "bomItems",
+  });
+
+  const { data: parts = [], isLoading: isLoadingParts } = useQuery({
+    queryKey: ["parts-for-bom"],
+    queryFn: fetchParts,
+    enabled: isOpen,
+  });
 
   // 초기 데이터 설정
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        productCode: initialData.productCode,
-        productName: initialData.productName || "",
-        description: initialData.description || "",
-      });
-      setBomItems(
-        initialData.bomItems?.map((item) => ({
+    if (isOpen) {
+      if (initialData) {
+        reset({
+          productCode: initialData.productCode,
+          productName: initialData.productName || "",
+          description: initialData.description || "",
+          unit: "EA",
+          bomItems: initialData.bomItems?.map((item) => ({
+            partId: item.partId,
+            quantityPerUnit: item.quantityPerUnit,
+            lossRate: item.lossRate,
+            notes: item.notes || "",
+          })) || [],
+        });
+      } else {
+        reset({
+          productCode: "",
+          productName: "",
+          description: "",
+          unit: "EA",
+          bomItems: [],
+        });
+      }
+    }
+  }, [initialData, isOpen, reset]);
+
+  const validateDuplicateParts = (data: ProductFormData): boolean => {
+    if (!data.bomItems || data.bomItems.length === 0) return true;
+    const partIds = data.bomItems.map((item) => item.partId).filter(Boolean);
+    const uniquePartIds = new Set(partIds);
+    if (partIds.length !== uniquePartIds.size) {
+      setError("bomItems", { type: "manual", message: "중복된 파츠가 있습니다." });
+      return false;
+    }
+    clearErrors("bomItems");
+    return true;
+  };
+
+  const onFormSubmit = (data: ProductFormData) => {
+    if (!validateDuplicateParts(data)) return;
+
+    onSubmit({
+      productCode: data.productCode,
+      productName: data.productName || null,
+      description: data.description || null,
+      bomItems: (data.bomItems || [])
+        .filter((item) => item.partId)
+        .map((item) => ({
           partId: item.partId,
           quantityPerUnit: item.quantityPerUnit,
           lossRate: item.lossRate,
           notes: item.notes || "",
-        })) || []
-      );
-    } else {
-      setFormData({
-        productCode: "",
-        productName: "",
-        description: "",
-      });
-      setBomItems([]);
-    }
-    setErrors({});
-  }, [initialData, isOpen]);
-
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.productCode?.trim()) {
-      newErrors.productCode = "제품코드를 입력해주세요.";
-    }
-
-    // BOM 항목 검증
-    bomItems.forEach((item, index) => {
-      if (!item.partId) {
-        newErrors[`bom_${index}_partId`] = "파츠를 선택해주세요.";
-      }
-      if (item.quantityPerUnit <= 0) {
-        newErrors[`bom_${index}_qty`] = "수량은 0보다 커야 합니다.";
-      }
+        })),
     });
-
-    // 중복 파츠 체크
-    const partIds = bomItems.map((item) => item.partId).filter(Boolean);
-    const uniquePartIds = new Set(partIds);
-    if (partIds.length !== uniquePartIds.size) {
-      newErrors.bom_duplicate = "중복된 파츠가 있습니다.";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validate()) {
-      onSubmit({
-        productCode: formData.productCode,
-        productName: formData.productName || null,
-        description: formData.description || null,
-        bomItems: bomItems.filter((item) => item.partId),
-      });
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
   };
 
   const addBomItem = () => {
-    setBomItems((prev) => [
-      ...prev,
-      { partId: 0, quantityPerUnit: 1, lossRate: 0, notes: "" },
-    ]);
-  };
-
-  const removeBomItem = (index: number) => {
-    setBomItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateBomItem = (
-    index: number,
-    field: keyof BomItemInput,
-    value: number | string
-  ) => {
-    setBomItems((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      )
-    );
+    append({ partId: 0, quantityPerUnit: 1, lossRate: 0, notes: "" });
   };
 
   const getPartDisplay = (part: Part) => {
-    return part.partName
-      ? `${part.partCode} - ${part.partName}`
-      : part.partCode;
+    return part.partName ? `${part.partCode} - ${part.partName}` : part.partCode;
   };
 
   return (
@@ -200,32 +162,28 @@ export default function ProductForm({
       title={initialData ? "제품 수정" : "제품 등록"}
       size="lg"
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onFormSubmit)}>
         <div className="space-y-4">
           {/* 기본 정보 */}
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="제품코드"
-              name="productCode"
-              value={formData.productCode}
-              onChange={handleChange}
-              error={errors.productCode}
+              {...register("productCode")}
+              error={errors.productCode?.message}
               required
               placeholder="예: PRD-001"
             />
             <Input
               label="제품명"
-              name="productName"
-              value={formData.productName}
-              onChange={handleChange}
+              {...register("productName")}
+              error={errors.productName?.message}
               placeholder="예: 스마트 센서 모듈"
             />
           </div>
           <Textarea
             label="설명"
-            name="description"
-            value={formData.description || ""}
-            onChange={handleChange}
+            {...register("description")}
+            error={errors.description?.message}
             placeholder="제품에 대한 설명을 입력하세요."
             rows={2}
           />
@@ -247,11 +205,11 @@ export default function ProductForm({
               </button>
             </div>
 
-            {errors.bom_duplicate && (
-              <p className="text-sm text-red-500 mb-2">{errors.bom_duplicate}</p>
+            {errors.bomItems?.message && (
+              <p className="text-sm text-red-500 mb-2">{errors.bomItems.message}</p>
             )}
 
-            {bomItems.length === 0 ? (
+            {fields.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)] text-center py-4 bg-[var(--bg-secondary)] rounded-lg">
                 등록된 파츠가 없습니다. 파츠 추가 버튼을 클릭하여 BOM을 구성하세요.
               </p>
@@ -266,77 +224,78 @@ export default function ProductForm({
                   <div className="col-span-1"></div>
                 </div>
 
-                {bomItems.map((item, index) => (
+                {fields.map((field, index) => (
                   <div
-                    key={index}
+                    key={field.id}
                     className="grid grid-cols-12 gap-2 items-center bg-[var(--bg-secondary)] p-2 rounded-lg"
                   >
                     <div className="col-span-5">
-                      <select
-                        value={item.partId || ""}
-                        onChange={(e) =>
-                          updateBomItem(index, "partId", parseInt(e.target.value) || 0)
-                        }
-                        className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
-                      >
-                        <option value="">파츠 선택</option>
-                        {parts.map((part) => (
-                          <option key={part.id} value={part.id}>
-                            {getPartDisplay(part)}
-                          </option>
-                        ))}
-                      </select>
-                      {errors[`bom_${index}_partId`] && (
-                        <p className="text-xs text-red-500 mt-1">
-                          {errors[`bom_${index}_partId`]}
-                        </p>
-                      )}
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.quantityPerUnit}
-                        onChange={(e) =>
-                          updateBomItem(
-                            index,
-                            "quantityPerUnit",
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        min="0"
-                        step="0.01"
-                        className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                      <Controller
+                        name={`bomItems.${index}.partId`}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <select
+                            value={controllerField.value || ""}
+                            onChange={(e) => controllerField.onChange(parseInt(e.target.value) || 0)}
+                            className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                          >
+                            <option value="">파츠 선택</option>
+                            {parts.map((part) => (
+                              <option key={part.id} value={part.id}>
+                                {getPartDisplay(part)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       />
-                      {errors[`bom_${index}_qty`] && (
+                      {errors.bomItems?.[index]?.partId && (
                         <p className="text-xs text-red-500 mt-1">
-                          {errors[`bom_${index}_qty`]}
+                          {errors.bomItems[index]?.partId?.message}
                         </p>
                       )}
                     </div>
                     <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.lossRate * 100}
-                        onChange={(e) =>
-                          updateBomItem(
-                            index,
-                            "lossRate",
-                            (parseFloat(e.target.value) || 0) / 100
-                          )
-                        }
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                      <Controller
+                        name={`bomItems.${index}.quantityPerUnit`}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <input
+                            type="number"
+                            value={controllerField.value}
+                            onChange={(e) => controllerField.onChange(parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.01"
+                            className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                          />
+                        )}
+                      />
+                      {errors.bomItems?.[index]?.quantityPerUnit && (
+                        <p className="text-xs text-red-500 mt-1">
+                          {errors.bomItems[index]?.quantityPerUnit?.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <Controller
+                        name={`bomItems.${index}.lossRate`}
+                        control={control}
+                        render={({ field: controllerField }) => (
+                          <input
+                            type="number"
+                            value={(controllerField.value ?? 0) * 100}
+                            onChange={(e) => controllerField.onChange((parseFloat(e.target.value) || 0) / 100)}
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                          />
+                        )}
                       />
                     </div>
                     <div className="col-span-2">
                       <input
                         type="text"
-                        value={item.notes}
-                        onChange={(e) =>
-                          updateBomItem(index, "notes", e.target.value)
-                        }
+                        {...register(`bomItems.${index}.notes`)}
                         placeholder="비고"
                         className="w-full px-2 py-1.5 text-sm border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)] text-[var(--text-primary)]"
                       />
@@ -344,7 +303,7 @@ export default function ProductForm({
                     <div className="col-span-1 flex justify-center">
                       <button
                         type="button"
-                        onClick={() => removeBomItem(index)}
+                        onClick={() => remove(index)}
                         className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                       >
                         <Trash2 className="w-4 h-4" />

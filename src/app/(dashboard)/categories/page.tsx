@@ -2,15 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-  createColumnHelper,
-  SortingState,
-  ColumnResizeMode,
-} from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import {
   FolderTree,
   Plus,
@@ -18,12 +10,11 @@ import {
   Edit2,
   Trash2,
   Package,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
+import { DataTable } from "@/components/ui/DataTable";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { createApiService } from "@/lib/api-client";
 
 interface Category {
   id: number;
@@ -34,47 +25,7 @@ interface Category {
   _count?: { parts: number };
 }
 
-async function fetchCategories(): Promise<Category[]> {
-  const res = await fetch("/api/categories");
-  if (!res.ok) throw new Error("Failed to fetch categories");
-  return res.json();
-}
-
-async function createCategory(data: Partial<Category>): Promise<Category> {
-  const res = await fetch("/api/categories", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to create category");
-  }
-  return res.json();
-}
-
-async function updateCategory(id: number, data: Partial<Category>): Promise<Category> {
-  const res = await fetch(`/api/categories/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to update category");
-  }
-  return res.json();
-}
-
-async function deleteCategory(id: number): Promise<void> {
-  const res = await fetch(`/api/categories/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to delete category");
-  }
-}
+const categoriesApi = createApiService<Category>("/api/categories");
 
 const columnHelper = createColumnHelper<Category>();
 
@@ -90,16 +41,14 @@ export default function CategoriesPage() {
     name: "",
     description: "",
   });
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: categories, isLoading, error } = useQuery({
     queryKey: ["categories"],
-    queryFn: fetchCategories,
+    queryFn: categoriesApi.getAll,
   });
 
   const createMutation = useMutation({
-    mutationFn: createCategory,
+    mutationFn: categoriesApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       toast.success("카테고리가 생성되었습니다.");
@@ -112,7 +61,7 @@ export default function CategoriesPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Category> }) =>
-      updateCategory(id, data),
+      categoriesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       toast.success("카테고리가 수정되었습니다.");
@@ -124,7 +73,7 @@ export default function CategoriesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteCategory,
+    mutationFn: categoriesApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       toast.success("카테고리가 삭제되었습니다.");
@@ -269,25 +218,6 @@ export default function CategoriesPage() {
     []
   );
 
-  const table = useReactTable({
-    data: filteredCategories,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    columnResizeMode,
-    enableColumnResizing: true,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" role="status" aria-label="로딩 중" />
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="glass-card p-6 text-center">
@@ -370,101 +300,20 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* Categories Table - Tanstack Table */}
-      <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
-            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="relative px-4 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
-                      style={{ width: header.getSize() }}
-                    >
-                      <div
-                        className={`flex items-center gap-1 ${
-                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
-                        }`}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <span className="text-[var(--text-muted)]">
-                            {header.column.getIsSorted() === "asc" ? (
-                              <ArrowUp className="w-3 h-3" />
-                            ) : header.column.getIsSorted() === "desc" ? (
-                              <ArrowDown className="w-3 h-3" />
-                            ) : (
-                              <ArrowUpDown className="w-3 h-3 opacity-50" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      {/* 컬럼 리사이즈 핸들 */}
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
-                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
-                          }`}
-                        />
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-[var(--glass-border)]">
-              {filteredCategories.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length} className="px-6 py-12 text-center">
-                    <FolderTree className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
-                    <p className="text-[var(--text-muted)]">
-                      {searchTerm ? "검색 결과가 없습니다." : "등록된 카테고리가 없습니다."}
-                    </p>
-                    {!searchTerm && (
-                      <button
-                        onClick={handleCreate}
-                        className="mt-4 text-[var(--primary)] hover:underline"
-                      >
-                        첫 번째 카테고리 추가하기
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="hover:bg-[var(--glass-bg)] transition-colors"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="px-4 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* 테이블 하단 안내 */}
-        {filteredCategories.length > 0 && (
-          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
-            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
-          </div>
-        )}
-      </div>
+      {/* Categories Table */}
+      <DataTable
+        data={filteredCategories}
+        columns={columns}
+        isLoading={isLoading}
+        searchTerm={searchTerm}
+        emptyState={{
+          icon: FolderTree,
+          message: "등록된 카테고리가 없습니다.",
+          searchMessage: "검색 결과가 없습니다.",
+          actionLabel: "첫 번째 카테고리 추가하기",
+          onAction: handleCreate,
+        }}
+      />
 
       {/* Form Modal */}
       {showFormModal && (

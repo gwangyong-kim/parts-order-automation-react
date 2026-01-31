@@ -1,18 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-  createColumnHelper,
-  SortingState,
-  ColumnResizeMode,
-} from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import {
   Warehouse,
   Search,
@@ -21,14 +13,12 @@ import {
   TrendingUp,
   TrendingDown,
   Package,
-  Filter,
-  ChevronDown,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
+import { DataTable } from "@/components/ui/DataTable";
+import { FilterDropdown } from "@/components/ui/FilterDropdown";
 import { useToast } from "@/components/ui/Toast";
 import { usePermission } from "@/hooks/usePermission";
+import { exportToCSV, formatDateKR } from "@/lib/export-utils";
 
 interface InventoryItem {
   id: number;
@@ -60,10 +50,6 @@ export default function InventoryPage() {
   const { can } = usePermission();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { data: inventory, isLoading, error } = useQuery({
     queryKey: ["inventory"],
@@ -72,22 +58,9 @@ export default function InventoryPage() {
     staleTime: 0,
   });
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setShowFilterDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const clearFilters = () => {
     setFilterStatus("all");
-    setShowFilterDropdown(false);
   };
-
-  const hasActiveFilters = filterStatus !== "all";
 
   const filteredInventory = useMemo(() => {
     if (!inventory) return [];
@@ -105,38 +78,27 @@ export default function InventoryPage() {
   }, [inventory, searchTerm, filterStatus]);
 
   const handleExport = () => {
-    if (!filteredInventory || filteredInventory.length === 0) {
-      toast.error("내보낼 데이터가 없습니다.");
-      return;
+    try {
+      exportToCSV({
+        data: filteredInventory,
+        headers: ["파츠번호", "파츠명", "단위", "현재고", "예약", "가용재고", "안전재고", "상태", "최종갱신"],
+        rowMapper: (item) => [
+          item.part.partNumber,
+          item.part.partName,
+          item.part.unit,
+          item.currentQty,
+          item.reservedQty,
+          item.availableQty,
+          item.part.safetyStock,
+          item.currentQty <= item.part.safetyStock ? "부족" : "정상",
+          formatDateKR(item.updatedAt),
+        ],
+        filename: "inventory",
+      });
+      toast.success("파일이 다운로드되었습니다.");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
-
-    const headers = ["파츠번호", "파츠명", "단위", "현재고", "예약", "가용재고", "안전재고", "상태", "최종갱신"];
-    const rows = filteredInventory.map((item) => [
-      item.part.partNumber,
-      item.part.partName,
-      item.part.unit,
-      item.currentQty,
-      item.reservedQty,
-      item.availableQty,
-      item.part.safetyStock,
-      item.currentQty <= item.part.safetyStock ? "부족" : "정상",
-      new Date(item.updatedAt).toLocaleDateString("ko-KR"),
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `inventory_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("파일이 다운로드되었습니다.");
   };
 
   const lowStockCount = inventory?.filter(
@@ -273,25 +235,6 @@ export default function InventoryPage() {
     []
   );
 
-  const table = useReactTable({
-    data: filteredInventory,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    columnResizeMode,
-    enableColumnResizing: true,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" role="status" aria-label="로딩 중" />
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="glass-card p-6 text-center">
@@ -389,44 +332,22 @@ export default function InventoryPage() {
             />
           </div>
           <div className="flex gap-2">
-            <div className="relative" ref={filterRef}>
-              <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className={`btn-secondary ${hasActiveFilters ? "ring-2 ring-[var(--primary-500)] ring-offset-1" : ""}`}
-              >
-                <Filter className="w-4 h-4" />
-                필터
-                {hasActiveFilters && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-[var(--primary-500)] text-white rounded-full">1</span>
-                )}
-                <ChevronDown className={`w-4 h-4 transition-transform ${showFilterDropdown ? "rotate-180" : ""}`} />
-              </button>
-
-              {showFilterDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-[var(--gray-200)] shadow-lg py-3 z-50 animate-scale-in">
-                  <div className="px-4 pb-2 mb-2 border-b border-[var(--gray-100)] flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[var(--gray-900)]">필터</span>
-                    {hasActiveFilters && (
-                      <button onClick={clearFilters} className="text-xs text-[var(--primary-500)] hover:underline">
-                        초기화
-                      </button>
-                    )}
-                  </div>
-                  <div className="px-4 py-2">
-                    <label className="text-xs font-medium text-[var(--gray-600)] mb-1.5 block">재고 상태</label>
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-[var(--gray-300)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
-                    >
-                      <option value="all">전체</option>
-                      <option value="low">저재고</option>
-                      <option value="normal">정상</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
+            <FilterDropdown
+              fields={[
+                {
+                  name: "status",
+                  label: "재고 상태",
+                  value: filterStatus,
+                  onChange: setFilterStatus,
+                  options: [
+                    { value: "all", label: "전체" },
+                    { value: "low", label: "저재고" },
+                    { value: "normal", label: "정상" },
+                  ],
+                },
+              ]}
+              onClear={clearFilters}
+            />
 
             {can("inventory", "export") && (
               <button onClick={handleExport} className="btn-secondary">
@@ -438,97 +359,22 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Inventory Table - TanStack Table */}
-      <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full tanstack-table" style={{ minWidth: table.getCenterTotalSize() }}>
-            <thead className="border-b border-[var(--glass-border)] bg-[var(--glass-bg)]">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="relative px-3 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider whitespace-nowrap border-r border-[var(--glass-border)] last:border-r-0"
-                      style={{ width: header.getSize() }}
-                    >
-                      <div
-                        className={`flex items-center gap-1 ${
-                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-[var(--text-primary)]" : ""
-                        }`}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <span className="text-[var(--text-muted)]">
-                            {header.column.getIsSorted() === "asc" ? (
-                              <ArrowUp className="w-3 h-3" />
-                            ) : header.column.getIsSorted() === "desc" ? (
-                              <ArrowDown className="w-3 h-3" />
-                            ) : (
-                              <ArrowUpDown className="w-3 h-3 opacity-50" />
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      {/* 컬럼 리사이즈 핸들 */}
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-[var(--primary)] ${
-                            header.column.getIsResizing() ? "bg-[var(--primary)]" : "bg-transparent"
-                          }`}
-                        />
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-[var(--glass-border)]">
-              {filteredInventory.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length} className="px-6 py-12 text-center">
-                    <Warehouse className="w-12 h-12 mx-auto mb-2 text-[var(--text-muted)]" />
-                    <p className="text-[var(--text-muted)]">재고 데이터가 없습니다.</p>
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => {
-                  const isLowStock = row.original.currentQty <= row.original.part.safetyStock;
-                  return (
-                    <tr
-                      key={row.id}
-                      onClick={() => router.push(`/parts/${row.original.part.id}`)}
-                      className={`hover:bg-[var(--glass-bg)] transition-colors cursor-pointer ${
-                        isLowStock ? "bg-[var(--danger)]/5" : ""
-                      }`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className="px-3 py-3 text-sm border-r border-[var(--glass-border)] last:border-r-0"
-                          style={{ width: cell.column.getSize() }}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* 테이블 하단 안내 */}
-        {filteredInventory.length > 0 && (
-          <div className="px-4 py-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/50 text-xs text-[var(--text-muted)]">
-            헤더 경계를 드래그하여 컬럼 너비 조절 | 헤더 클릭으로 정렬
-          </div>
-        )}
-      </div>
+      {/* Inventory Table */}
+      <DataTable
+        data={filteredInventory}
+        columns={columns}
+        isLoading={isLoading}
+        searchTerm={searchTerm}
+        onRowClick={(item) => router.push(`/parts/${item.part.id}`)}
+        rowClassName={(item) =>
+          item.currentQty <= item.part.safetyStock ? "bg-[var(--danger)]/5" : ""
+        }
+        emptyState={{
+          icon: Warehouse,
+          message: "재고 데이터가 없습니다.",
+          searchMessage: "검색 결과가 없습니다.",
+        }}
+      />
     </div>
   );
 }
